@@ -69,3 +69,9 @@ htmlcov/
 # pytest
 .pytest_cache/
 
+# Configuration and secrets
+config/
+*.key
+*.enc
+
+

@@ -50,7 +50,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       const response = await apiClient.upload(file);
       setUploadStatus('success');
       setUploadMessage('File uploaded successfully!');
-      onUploadSuccess(response.data.document);
+      onUploadSuccess(response.data); // response.data is the document directly
       
       // Reset after 3 seconds
       setTimeout(() => {

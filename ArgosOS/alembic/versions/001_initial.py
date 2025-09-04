@@ -57,3 +57,5 @@ def downgrade() -> None:
     op.drop_index('idx_documents_content_hash', table_name='documents')
     op.drop_table('documents')
 
+
+

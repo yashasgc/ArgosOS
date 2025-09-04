@@ -110,3 +110,5 @@ def test_get_documents_title_filter(mock_db):
     assert len(data) == 1
     assert "Test" in data[0]["title"]
 
+
+

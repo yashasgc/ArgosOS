@@ -15,3 +15,5 @@ def app_settings():
     """App settings fixture"""
     return app.state.settings if hasattr(app.state, 'settings') else None
 
+
+

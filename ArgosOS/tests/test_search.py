@@ -104,3 +104,5 @@ def test_search_documents_missing_query_field():
     
     assert response.status_code == 422  # Validation error
 
+
+

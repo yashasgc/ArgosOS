@@ -1,4 +1,4 @@
-import { FileText, Tag, Calendar, File, Eye } from 'lucide-react';
+import { FileText, Tag, Calendar, Eye, Sparkles } from 'lucide-react';
 import type { Document } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -17,8 +17,8 @@ export default function FileCard({ document, onClick, className }: FileCardProps
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -35,9 +35,10 @@ export default function FileCard({ document, onClick, className }: FileCardProps
     return '📁';
   };
 
-  const truncateContent = (content: string, maxLength: number = 150) => {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + '...';
+  const truncateSummary = (summary: string | undefined, maxLength: number = 150) => {
+    if (!summary) return 'No summary available';
+    if (summary.length <= maxLength) return summary;
+    return summary.substring(0, maxLength) + '...';
   };
 
   return (
@@ -54,7 +55,7 @@ export default function FileCard({ document, onClick, className }: FileCardProps
           <span className="text-2xl">{getFileIcon(document.mime_type)}</span>
           <div>
             <h3 className="font-medium text-gray-900 truncate max-w-[200px]">
-              {document.name}
+              {document.title}
             </h3>
             <p className="text-xs text-gray-500">{document.mime_type}</p>
           </div>
@@ -67,7 +68,7 @@ export default function FileCard({ document, onClick, className }: FileCardProps
       {/* Content Preview */}
       <div className="mb-3">
         <p className="text-sm text-gray-600 line-clamp-3">
-          {truncateContent(document.content)}
+          {truncateSummary(document.summary)}
         </p>
       </div>
 
@@ -75,13 +76,13 @@ export default function FileCard({ document, onClick, className }: FileCardProps
       {document.tags && document.tags.length > 0 && (
         <div className="mb-3">
           <div className="flex flex-wrap gap-1">
-            {document.tags.slice(0, 3).map((tag) => (
+            {document.tags.slice(0, 3).map((tagName, index) => (
               <span
-                key={tag.id}
+                key={index}
                 className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               >
                 <Tag className="h-3 w-3 mr-1" />
-                {tag.name}
+                {tagName}
               </span>
             ))}
             {document.tags.length > 3 && (
@@ -97,8 +98,8 @@ export default function FileCard({ document, onClick, className }: FileCardProps
       <div className="flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center space-x-3">
           <div className="flex items-center">
-            <File className="h-3 w-3 mr-1" />
-            {formatFileSize(document.file_size)}
+            <Sparkles className="h-3 w-3 mr-1" />
+            {formatFileSize(document.size_bytes)}
           </div>
           <div className="flex items-center">
             <Calendar className="h-3 w-3 mr-1" />

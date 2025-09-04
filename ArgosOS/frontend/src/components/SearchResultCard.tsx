@@ -10,8 +10,8 @@ interface SearchResultCardProps {
 }
 
 export default function SearchResultCard({ document, query, onClick, className }: SearchResultCardProps) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -43,30 +43,32 @@ export default function SearchResultCard({ document, query, onClick, className }
     );
   };
 
-  const getRelevantSnippet = (content: string, query: string, maxLength: number = 200) => {
+  const getRelevantSnippet = (summary: string | undefined, query: string, maxLength: number = 200) => {
+    if (!summary) return 'No summary available';
+    
     if (!query.trim()) {
-      return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
+      return summary.length > maxLength ? summary.substring(0, maxLength) + '...' : summary;
     }
 
     const queryLower = query.toLowerCase();
-    const contentLower = content.toLowerCase();
-    const queryIndex = contentLower.indexOf(queryLower);
+    const summaryLower = summary.toLowerCase();
+    const queryIndex = summaryLower.indexOf(queryLower);
     
     if (queryIndex === -1) {
-      return content.length > maxLength ? content.substring(0, maxLength) + '...' : content;
+      return summary.length > maxLength ? summary.substring(0, maxLength) + '...' : summary;
     }
 
     const start = Math.max(0, queryIndex - 50);
-    const end = Math.min(content.length, queryIndex + query.length + 50);
-    let snippet = content.substring(start, end);
+    const end = Math.min(summary.length, queryIndex + query.length + 50);
+    let snippet = summary.substring(start, end);
     
     if (start > 0) snippet = '...' + snippet;
-    if (end < content.length) snippet = snippet + '...';
+    if (end < summary.length) snippet = snippet + '...';
     
     return snippet;
   };
 
-  const snippet = getRelevantSnippet(document.content, query);
+  const snippet = getRelevantSnippet(document.summary, query);
 
   return (
     <div
@@ -82,7 +84,7 @@ export default function SearchResultCard({ document, query, onClick, className }
           <span className="text-2xl">{getFileIcon(document.mime_type)}</span>
           <div>
             <h3 className="font-medium text-gray-900 truncate max-w-[250px]">
-              {highlightQuery(document.name, query)}
+              {highlightQuery(document.title, query)}
             </h3>
             <p className="text-xs text-gray-500">{document.mime_type}</p>
           </div>
@@ -106,13 +108,13 @@ export default function SearchResultCard({ document, query, onClick, className }
       {document.tags && document.tags.length > 0 && (
         <div className="mb-3">
           <div className="flex flex-wrap gap-1">
-            {document.tags.slice(0, 3).map((tag) => (
+            {document.tags.slice(0, 3).map((tagName, index) => (
               <span
-                key={tag.id}
+                key={index}
                 className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               >
                 <Tag className="h-3 w-3 mr-1" />
-                {tag.name}
+                {tagName}
               </span>
             ))}
             {document.tags.length > 3 && (
@@ -129,7 +131,7 @@ export default function SearchResultCard({ document, query, onClick, className }
         <div className="flex items-center space-x-3">
           <div className="flex items-center">
             <File className="h-3 w-3 mr-1" />
-            {document.file_size > 0 ? `${(document.file_size / 1024).toFixed(1)} KB` : 'Unknown size'}
+            {document.size_bytes > 0 ? `${(document.size_bytes / 1024).toFixed(1)} KB` : 'Unknown size'}
           </div>
           <div className="flex items-center">
             <Calendar className="h-3 w-3 mr-1" />
