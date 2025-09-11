@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Upload, FileText, Search, X, Sparkles, Settings, Eye, EyeOff } from 'lucide-react';
+import { useElectron } from './hooks/useElectron';
+import { ElectronFileUpload } from './components/ElectronFileUpload';
 import './index.css';
 
 interface Document {
@@ -20,6 +22,7 @@ interface Tab {
 }
 
 function App() {
+  const { isElectron, apiCall } = useElectron();
   const [activeTab, setActiveTab] = useState<TabId>('upload');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,10 +61,13 @@ function App() {
 
   const checkApiKeyStatus = async () => {
     try {
-      const response = await fetch('http://localhost:8000/v1/api-key/status');
-      if (response.ok) {
-        const status = await response.json();
-        setApiKeyStatus(status);
+      const result = await apiCall({
+        method: 'GET',
+        endpoint: '/v1/api-key/status'
+      });
+      
+      if (result.success) {
+        setApiKeyStatus(result.data);
       }
     } catch (error) {
       console.error('Failed to check API key status:', error);
@@ -73,21 +79,19 @@ function App() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/v1/api-key', {
+      const result = await apiCall({
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ api_key: apiKey }),
+        endpoint: '/v1/api-key',
+        data: { api_key: apiKey }
       });
 
-      if (response.ok) {
+      if (result.success) {
         setApiKeySaved(true);
         setTimeout(() => setApiKeySaved(false), 3000);
         await checkApiKeyStatus();
         setApiKey(''); // Clear the input for security
       } else {
-        throw new Error('Failed to save API key');
+        throw new Error(result.error || 'Failed to save API key');
       }
     } catch (error) {
       console.error('Error saving API key:', error);
@@ -100,15 +104,16 @@ function App() {
   const handleClearApiKey = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/v1/api-key', {
+      const result = await apiCall({
         method: 'DELETE',
+        endpoint: '/v1/api-key'
       });
 
-      if (response.ok) {
+      if (result.success) {
         setApiKeyStatus({ configured: false, encrypted: false });
         setApiKey('');
       } else {
-        throw new Error('Failed to clear API key');
+        throw new Error(result.error || 'Failed to clear API key');
       }
     } catch (error) {
       console.error('Error clearing API key:', error);
@@ -165,36 +170,50 @@ function App() {
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-gray-900 mb-6">Upload Your Documents</h2>
       <p className="text-gray-600 mb-8">
-        Drag and drop files here or click to browse. Our AI will analyze and transform your documents into intelligent, searchable knowledge.
+        {isElectron 
+          ? "Select files using the native file picker. Our AI will analyze and transform your documents into intelligent, searchable knowledge."
+          : "Drag and drop files here or click to browse. Our AI will analyze and transform your documents into intelligent, searchable knowledge."
+        }
       </p>
       
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors">
-        <input
-          type="file"
-          id="file-upload"
-          className="hidden"
-          onChange={handleFileSelect}
-          accept=".pdf,.txt,.doc,.docx,.md"
-        />
-        <label htmlFor="file-upload" className="cursor-pointer">
-          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-lg font-medium text-gray-900 mb-2">Choose a file or drag & drop</p>
-          <p className="text-sm text-gray-500">Supports PDF, TXT, DOC, DOCX, and Markdown files</p>
-        </label>
-      </div>
-      
-      {uploading && (
-        <div className="mt-6 text-center">
-          <div className="inline-flex items-center space-x-2 text-blue-600">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span>Uploading...</span>
+      {isElectron ? (
+        <ElectronFileUpload />
+      ) : (
+        <>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors">
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              onChange={handleFileSelect}
+              accept=".pdf,.txt,.doc,.docx,.md"
+            />
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-900 mb-2">Choose a file or drag & drop</p>
+              <p className="text-sm text-gray-500">Supports PDF, TXT, DOC, DOCX, and Markdown files</p>
+            </label>
           </div>
-        </div>
+          
+          {uploading && (
+            <div className="mt-6 text-center">
+              <div className="inline-flex items-center space-x-2 text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Uploading...</span>
+              </div>
+            </div>
+          )}
+        </>
       )}
       
       <div className="mt-8 flex items-center justify-center text-sm text-gray-500">
         <Sparkles className="w-4 h-4 mr-2" />
         AI-Powered Analysis
+        {isElectron && (
+          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+            Desktop App
+          </span>
+        )}
       </div>
     </div>
   );

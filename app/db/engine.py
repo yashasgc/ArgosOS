@@ -28,6 +28,10 @@ def init_database():
     Base.metadata.create_all(bind=engine)
     print(f"✓ Database initialized at {DB_PATH}")
 
+def create_tables():
+    """Create all tables - alias for init_database for compatibility"""
+    init_database()
+
 
 def get_db() -> Session:
     """Dependency to get database session"""

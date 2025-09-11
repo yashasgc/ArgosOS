@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from cryptography.fernet import Fernet
@@ -6,6 +6,12 @@ import base64
 import os
 import json
 from pathlib import Path
+from sqlalchemy.orm import Session
+from app.db.engine import get_db
+from app.agents.ingest_agent import IngestAgent
+from app.agents.retrieval_agent import RetrievalAgent
+from app.agents.postprocessor_agent import PostProcessorAgent
+from app.llm.openai_provider import OpenAIProvider
 
 app = FastAPI(
     title="ArgosOS Backend",
@@ -151,4 +157,177 @@ async def get_decrypted_api_key():
         return {"api_key": api_keys["openai"]}
     except Exception as e:
         return {"error": f"Failed to decrypt API key: {str(e)}"}
+
+# Initialize agents
+def get_ingest_agent():
+    """Get IngestAgent instance"""
+    api_keys = load_encrypted_api_keys()
+    openai_key = api_keys.get("openai")
+    
+    if openai_key:
+        llm_provider = OpenAIProvider()
+        llm_provider.api_key = openai_key
+    else:
+        from app.llm.provider import DisabledLLMProvider
+        llm_provider = DisabledLLMProvider()
+    
+    return IngestAgent(llm_provider)
+
+def get_retrieval_agent():
+    """Get RetrievalAgent instance"""
+    api_keys = load_encrypted_api_keys()
+    openai_key = api_keys.get("openai")
+    
+    if openai_key:
+        llm_provider = OpenAIProvider()
+        llm_provider.api_key = openai_key
+    else:
+        from app.llm.provider import DisabledLLMProvider
+        llm_provider = DisabledLLMProvider()
+    
+    return RetrievalAgent(llm_provider)
+
+def get_postprocessor_agent():
+    """Get PostProcessorAgent instance"""
+    api_keys = load_encrypted_api_keys()
+    openai_key = api_keys.get("openai")
+    
+    if openai_key:
+        llm_provider = OpenAIProvider()
+        llm_provider.api_key = openai_key
+    else:
+        from app.llm.provider import DisabledLLMProvider
+        llm_provider = DisabledLLMProvider()
+    
+    return PostProcessorAgent(llm_provider)
+
+# File upload endpoint
+@app.post("/api/files/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Upload and process a file"""
+    try:
+        # Save uploaded file temporarily
+        temp_dir = Path("./temp_uploads")
+        temp_dir.mkdir(exist_ok=True)
+        
+        file_path = temp_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Process with IngestAgent
+        ingest_agent = get_ingest_agent()
+        document, errors = ingest_agent.ingest_file(file_path, db)
+        
+        # Clean up temp file
+        file_path.unlink()
+        
+        if document:
+            return {
+                "success": True,
+                "document": {
+                    "id": document.id,
+                    "title": document.title,
+                    "summary": document.summary,
+                    "mime_type": document.mime_type,
+                    "size_bytes": document.size_bytes,
+                    "created_at": document.created_at,
+                    "tags": [{"name": tag.name} for tag in document.tags]
+                },
+                "errors": errors
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to process file",
+                "errors": errors
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Upload failed: {str(e)}"
+        }
+
+# Search endpoint
+@app.get("/api/search")
+async def search_documents(
+    query: str,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """Search documents using natural language"""
+    try:
+        retrieval_agent = get_retrieval_agent()
+        results = retrieval_agent.search_documents(query, db, limit)
+        
+        return {
+            "success": True,
+            "query": query,
+            "results": results
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Search failed: {str(e)}"
+        }
+
+# Get document content
+@app.get("/api/documents/{document_id}")
+async def get_document(
+    document_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get document content by ID"""
+    try:
+        retrieval_agent = get_retrieval_agent()
+        content = retrieval_agent.get_document_content(document_id, db)
+        
+        if content:
+            return {
+                "success": True,
+                "content": content
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Document not found"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get document: {str(e)}"
+        }
+
+# Process documents endpoint
+@app.post("/api/process")
+async def process_documents(
+    query: str,
+    document_ids: list[str],
+    db: Session = Depends(get_db)
+):
+    """Process documents with PostProcessorAgent"""
+    try:
+        postprocessor_agent = get_postprocessor_agent()
+        results = postprocessor_agent.process_documents(query, document_ids, db)
+        
+        return {
+            "success": True,
+            "query": query,
+            "results": results
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Processing failed: {str(e)}"
+        }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "message": "ArgosOS Backend is running"}
 

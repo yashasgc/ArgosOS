@@ -18,6 +18,11 @@ class LLMProvider(ABC):
     def generate_tags(self, text: str) -> List[str]:
         """Generate tags for the given text"""
         pass
+    
+    @abstractmethod
+    def generate_sql_query(self, query: str, schema_info: str = "") -> str:
+        """Generate SQL query from natural language query"""
+        pass
 
 class DisabledLLMProvider(LLMProvider):
     """LLM provider that does nothing (when LLM is disabled)"""
@@ -30,5 +35,8 @@ class DisabledLLMProvider(LLMProvider):
     
     def generate_tags(self, text: str) -> List[str]:
         return []
+    
+    def generate_sql_query(self, query: str, schema_info: str = "") -> str:
+        return ""
 
 
