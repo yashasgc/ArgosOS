@@ -246,7 +246,9 @@ python start.py
 
 ## 📄 License
 
-This project is part of the ArgosOS intelligent document management system.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+Copyright (c) 2024 ArgosOS
 
 ## 🆘 Troubleshooting
 
