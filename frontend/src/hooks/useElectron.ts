@@ -68,7 +68,11 @@ export const useElectron = () => {
           body: options.data instanceof FormData ? options.data : (options.data ? JSON.stringify(options.data) : undefined),
         });
         const data = await response.json();
-        const errorMessage = response.ok ? undefined : (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || data));
+        const errorMessage = response.ok ? undefined : (
+          data.detail?.message || 
+          data.message || 
+          (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || data))
+        );
         return { success: response.ok, data, error: errorMessage };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };

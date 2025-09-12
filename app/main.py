@@ -231,6 +231,11 @@ async def upload_file(
 ):
     """Upload and process a file with security validation"""
     try:
+        # DEBUG: Log what we're receiving
+        print(f"DEBUG: Filename: {file.filename}")
+        print(f"DEBUG: Content-Type: {file.content_type}")
+        print(f"DEBUG: File size: {file.size if hasattr(file, 'size') else 'unknown'}")
+        
         # Security validations
         is_valid, error = FileValidator.validate_filename(file.filename)
         if not is_valid:

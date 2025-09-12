@@ -79,7 +79,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       updateProcessingStep('uploaded');
       
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file, file.name);
       
       const response = await apiCall({
         method: 'POST',
@@ -118,6 +118,12 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       }, 5000);
     } catch (error: any) {
       setUploadStatus('error');
+      
+      // Debug logging
+      console.error('Upload error details:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      
       let errorMessage = 'Upload failed. Please try again.';
       
       if (typeof error === 'string') {
