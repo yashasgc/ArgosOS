@@ -22,11 +22,16 @@ wheels/
 MANIFEST
 
 # Virtual environments
-venv/
+.env
+.venv
 env/
+venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Poetry
+poetry.lock
 
 # IDE
 .vscode/
@@ -49,29 +54,23 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Data files
-data/
-blobs/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
 # Logs
 *.log
 logs/
 
-# Coverage
-.coverage
-htmlcov/
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# pytest
-.pytest_cache/
+# Frontend build
+frontend/dist/
+frontend/dist-electron/
 
-# Configuration and secrets
-config/
-*.key
-*.enc
+# Data directory
+data/blobs/
+data/*.db
 
-
+# Config
+config.env

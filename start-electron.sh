@@ -11,8 +11,14 @@ if [ ! -f "start.py" ]; then
 fi
 
 # Check if Python is available
-if ! command -v python &> /dev/null; then
-    echo "❌ Python is not installed or not in PATH"
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python3 is not installed or not in PATH"
+    exit 1
+fi
+
+# Check if Poetry is available
+if ! command -v poetry &> /dev/null; then
+    echo "❌ Poetry is not installed or not in PATH"
     exit 1
 fi
 
@@ -39,14 +45,16 @@ if [ ! -d "frontend/node_modules" ]; then
 fi
 
 # Install backend dependencies if needed
-if [ ! -d "venv" ] && [ ! -d ".venv" ]; then
-    echo "📦 Installing backend dependencies..."
-    pip install -r requirements.txt
+if [ ! -f "poetry.lock" ]; then
+    echo "📦 Installing backend dependencies with Poetry..."
+    poetry install
+else
+    echo "📦 Backend dependencies already installed"
 fi
 
 # Start the backend in the background
 echo "🐍 Starting Python backend..."
-python start.py &
+poetry run python start.py &
 BACKEND_PID=$!
 
 # Wait for backend to start
