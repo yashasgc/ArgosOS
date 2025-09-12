@@ -6,9 +6,9 @@ interface Document {
   title: string;
   summary?: string;
   created_at: number;
-  tags: Array<{ name: string }>;
   mime_type?: string;
   size_bytes?: number;
+  tags: string[];
 }
 
 interface FileCardProps {
@@ -91,7 +91,7 @@ export default function FileCard({ document, onClick, className }: FileCardProps
                 className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               >
                 <Tag className="h-3 w-3 mr-1" />
-                {tag.name}
+                {tag}
               </span>
             ))}
             {document.tags.length > 3 && (

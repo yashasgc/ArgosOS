@@ -9,9 +9,9 @@ interface Document {
   title: string;
   summary?: string;
   created_at: number;
-  tags: Array<{ name: string }>;
   mime_type?: string;
   size_bytes?: number;
+  tags: string[];
 }
 
 type TabId = 'upload' | 'documents' | 'search' | 'settings';
@@ -210,15 +210,22 @@ function App() {
       {doc.summary && (
         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{doc.summary}</p>
       )}
-      <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>{new Date(doc.created_at).toLocaleDateString()}</span>
-        <div className="flex space-x-1">
-          {doc.tags.map((tag, index) => (
-            <span key={index} className="px-2 py-1 bg-gray-100 rounded-full">
-              {tag.name}
+      {doc.tags && doc.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {doc.tags.slice(0, 3).map((tag, index) => (
+            <span key={index} className="px-2 py-1 bg-gray-100 rounded-full text-xs">
+              {tag}
             </span>
           ))}
+          {doc.tags.length > 3 && (
+            <span className="px-2 py-1 bg-gray-100 rounded-full text-xs">
+              +{doc.tags.length - 3} more
+            </span>
+          )}
         </div>
+      )}
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>{new Date(doc.created_at).toLocaleDateString()}</span>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ interface Document {
   title: string;
   summary: string;
   created_at: number;
-  tags: Array<{ name: string }>;
+  tags: string[];
 }
 
 interface FileUploadProps {
@@ -117,7 +117,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         await new Promise(resolve => setTimeout(resolve, 300));
       }
       
-      if (response.data.document.tags?.length > 0) {
+      if (response.data.document.tags && response.data.document.tags.length > 0) {
         updateProcessingStep('tagged');
         await new Promise(resolve => setTimeout(resolve, 200));
       }

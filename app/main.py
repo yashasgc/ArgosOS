@@ -258,7 +258,7 @@ async def upload_file(
                     "mime_type": document.mime_type,
                     "size_bytes": document.size_bytes,
                     "created_at": document.created_at,
-                    "tags": [{"name": tag.name} for tag in document.tags]
+                    "tags": json.loads(document.tags) if document.tags else []
                 },
                 "errors": errors
             }
@@ -323,7 +323,7 @@ async def get_documents(
         
         return {
             "success": True,
-            "documents": [
+            "documents":             [
                 {
                     "id": doc.id,
                     "title": doc.title,
@@ -331,7 +331,7 @@ async def get_documents(
                     "mime_type": doc.mime_type,
                     "size_bytes": doc.size_bytes,
                     "created_at": doc.created_at,
-                    "tags": [{"name": tag.name} for tag in doc.tags]
+                    "tags": json.loads(doc.tags) if doc.tags else []
                 }
                 for doc in documents
             ],

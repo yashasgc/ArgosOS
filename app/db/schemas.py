@@ -1,21 +1,9 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
+import json
 
 
-class TagBase(BaseModel):
-    name: str
-
-
-class TagCreate(TagBase):
-    pass
-
-
-class Tag(TagBase):
-    id: int
-    
-    class Config:
-        from_attributes = True
 
 
 class DocumentBase(BaseModel):
@@ -23,6 +11,7 @@ class DocumentBase(BaseModel):
     mime_type: str
     size_bytes: int
     summary: Optional[str] = None
+    tags: List[str] = []
 
 
 class DocumentCreate(DocumentBase):
@@ -38,10 +27,20 @@ class Document(DocumentBase):
     storage_path: str
     created_at: int
     imported_at: int
-    tags: List[Tag] = []
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Custom from_orm to handle JSON tags field"""
+        data = obj.__dict__.copy()
+        if 'tags' in data and isinstance(data['tags'], str):
+            try:
+                data['tags'] = json.loads(data['tags'])
+            except (json.JSONDecodeError, TypeError):
+                data['tags'] = []
+        return cls(**data)
 
 
 class DocumentResponse(BaseModel):
@@ -51,7 +50,7 @@ class DocumentResponse(BaseModel):
     mime_type: str
     size_bytes: int
     created_at: int
-    tags: List[Tag] = []
+    tags: List[str] = []
     
     class Config:
         from_attributes = True

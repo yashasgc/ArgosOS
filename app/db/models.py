@@ -1,19 +1,12 @@
 import uuid
 import time
-from typing import List, Optional
+from typing import Optional
 
-from sqlalchemy import Column, String, Integer, ForeignKey, Table, Text, Index
-from sqlalchemy.orm import declarative_base, Mapped, relationship
+from sqlalchemy import Column, String, Integer, Text, Index
+from sqlalchemy.orm import declarative_base, Mapped
 
 Base = declarative_base()
 
-# Association table for many-to-many relationship between documents and tags
-document_tags = Table(
-    "document_tags",
-    Base.metadata,
-    Column("document_id", String, ForeignKey("documents.id"), primary_key=True),
-    Column("tag_id", Integer, ForeignKey("tags.id"), primary_key=True),
-)
 
 
 class Document(Base):
@@ -35,36 +28,18 @@ class Document(Base):
     # AI-generated content
     summary: Mapped[Optional[str]] = Column(Text, nullable=True)
     
+    # Tags stored as JSON string
+    tags: Mapped[str] = Column(Text, nullable=False, default="[]")
+    
     # Timestamps (epoch milliseconds)
     created_at: Mapped[int] = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
     imported_at: Mapped[int] = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
     
-    # Relationships
-    tags: Mapped[List["Tag"]] = relationship(
-        "Tag", secondary=document_tags, back_populates="documents"
-    )
     
     def __repr__(self):
         return f"<Document(id='{self.id[:8]}...', title='{self.title}', size={self.size_bytes})>"
 
 
-class Tag(Base):
-    """Tags table - stores document categories and labels"""
-    __tablename__ = "tags"
-    
-    # Primary key - auto-increment integer
-    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Tag name (stored in lowercase for consistency)
-    name: Mapped[str] = Column(String, unique=True, nullable=False, index=True)
-    
-    # Relationships
-    documents: Mapped[List["Document"]] = relationship(
-        "Document", secondary=document_tags, back_populates="tags"
-    )
-    
-    def __repr__(self):
-        return f"<Tag(id={self.id}, name='{self.name}')>"
 
 
 
