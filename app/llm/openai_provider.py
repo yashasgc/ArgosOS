@@ -23,7 +23,7 @@ class OpenAIProvider(LLMProvider):
     
     def is_available(self) -> bool:
         """Check if OpenAI provider is available"""
-        return bool(self.api_key and self.api_key.strip())
+        return bool(self.api_key and self.api_key.strip() and self.client)
     
     def summarize(self, text: str) -> str:
         """Generate a summary using OpenAI"""

@@ -6,7 +6,6 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.llm.provider import LLMProvider
-from app.files.extractors import TextExtractor
 
 
 class PostProcessorAgent:
@@ -19,7 +18,6 @@ class PostProcessorAgent:
     
     def __init__(self, llm_provider: LLMProvider):
         self.llm_provider = llm_provider
-        self.text_extractor = TextExtractor()
     
     def process_documents(
         self, 
@@ -124,7 +122,14 @@ class PostProcessorAgent:
             if not file_path.exists():
                 return ""
             
-            extracted_text = self.text_extractor.extract_text(file_path, mime_type)
+            # Read file content and extract text using IngestAgent
+            from app.agents.ingest_agent import IngestAgent
+            ingest_agent = IngestAgent(self.llm_provider)
+            
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+            
+            extracted_text = ingest_agent._extract_text(file_data, mime_type, file_path.name)
             return extracted_text or ""
             
         except Exception as e:

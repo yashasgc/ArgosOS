@@ -1,18 +1,32 @@
 import { useState, useCallback } from 'react';
-import { Upload, File, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, File, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { apiClient } from '../lib/api';
-import type { Document } from '../lib/api';
+import { useElectron } from '../hooks/useElectron';
+
+interface Document {
+  id: string;
+  title: string;
+  summary: string;
+  created_at: number;
+  tags: Array<{ name: string }>;
+}
 
 interface FileUploadProps {
   onUploadSuccess: (document: Document) => void;
 }
 
 export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
+  const { apiCall } = useElectron();
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
+  const [processingSteps, setProcessingSteps] = useState({
+    uploaded: false,
+    extracted: false,
+    summarized: false,
+    tagged: false
+  });
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -41,25 +55,70 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     }
   }, []);
 
+  const updateProcessingStep = (step: keyof typeof processingSteps) => {
+    setProcessingSteps(prev => ({ ...prev, [step]: true }));
+  };
+
+  const resetProcessingSteps = () => {
+    setProcessingSteps({
+      uploaded: false,
+      extracted: false,
+      summarized: false,
+      tagged: false
+    });
+  };
+
   const handleFileUpload = async (file: File) => {
     setUploading(true);
     setUploadStatus('idle');
     setUploadMessage('');
+    resetProcessingSteps();
 
     try {
-      const response = await apiClient.upload(file);
-      setUploadStatus('success');
-      setUploadMessage('File uploaded successfully!');
-      onUploadSuccess(response.data); // response.data is the document directly
+      // Step 1: Upload file
+      updateProcessingStep('uploaded');
       
-      // Reset after 3 seconds
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await apiCall({
+        method: 'POST',
+        endpoint: '/api/files/upload',
+        data: formData
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Upload failed');
+      }
+
+      // Step 2: Text extraction (simulated delay)
+      updateProcessingStep('extracted');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 3: AI processing (simulated delay)
+      if (response.data.document.summary) {
+        updateProcessingStep('summarized');
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      if (response.data.document.tags?.length > 0) {
+        updateProcessingStep('tagged');
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      setUploadStatus('success');
+      setUploadMessage('File processed successfully!');
+      onUploadSuccess(response.data.document);
+      
+      // Reset after 5 seconds
       setTimeout(() => {
         setUploadStatus('idle');
         setUploadMessage('');
-      }, 3000);
+        resetProcessingSteps();
+      }, 5000);
     } catch (error: any) {
       setUploadStatus('error');
-      setUploadMessage(error.response?.data?.detail || 'Upload failed. Please try again.');
+      setUploadMessage(error.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -113,22 +172,131 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         )}
 
         {uploading && (
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600">Uploading...</span>
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Processing...</span>
+            </div>
+            
+            {/* Processing Steps Indicator */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-gray-700 text-center">Processing Steps</div>
+              <div className="space-y-2">
+                {/* Upload Step */}
+                <div className="flex items-center space-x-3">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
+                    processingSteps.uploaded 
+                      ? "bg-green-500 text-white" 
+                      : "bg-gray-200 text-gray-500"
+                  )}>
+                    {processingSteps.uploaded ? <CheckCircle className="h-4 w-4" /> : "1"}
+                  </div>
+                  <span className={cn(
+                    "text-sm",
+                    processingSteps.uploaded ? "text-green-600 font-medium" : "text-gray-500"
+                  )}>
+                    File Uploaded
+                  </span>
+                </div>
+
+                {/* Extraction Step */}
+                <div className="flex items-center space-x-3">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
+                    processingSteps.extracted 
+                      ? "bg-green-500 text-white" 
+                      : processingSteps.uploaded
+                        ? "bg-blue-500 text-white animate-pulse"
+                        : "bg-gray-200 text-gray-500"
+                  )}>
+                    {processingSteps.extracted ? <CheckCircle className="h-4 w-4" /> : "2"}
+                  </div>
+                  <span className={cn(
+                    "text-sm",
+                    processingSteps.extracted ? "text-green-600 font-medium" : 
+                    processingSteps.uploaded ? "text-blue-600" : "text-gray-500"
+                  )}>
+                    Text Extraction
+                  </span>
+                </div>
+
+                {/* Summary Step */}
+                <div className="flex items-center space-x-3">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
+                    processingSteps.summarized 
+                      ? "bg-green-500 text-white" 
+                      : processingSteps.extracted
+                        ? "bg-blue-500 text-white animate-pulse"
+                        : "bg-gray-200 text-gray-500"
+                  )}>
+                    {processingSteps.summarized ? <CheckCircle className="h-4 w-4" /> : "3"}
+                  </div>
+                  <span className={cn(
+                    "text-sm",
+                    processingSteps.summarized ? "text-green-600 font-medium" : 
+                    processingSteps.extracted ? "text-blue-600" : "text-gray-500"
+                  )}>
+                    AI Summary
+                  </span>
+                </div>
+
+                {/* Tags Step */}
+                <div className="flex items-center space-x-3">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
+                    processingSteps.tagged 
+                      ? "bg-green-500 text-white" 
+                      : processingSteps.summarized
+                        ? "bg-blue-500 text-white animate-pulse"
+                        : "bg-gray-200 text-gray-500"
+                  )}>
+                    {processingSteps.tagged ? <CheckCircle className="h-4 w-4" /> : "4"}
+                  </div>
+                  <span className={cn(
+                    "text-sm",
+                    processingSteps.tagged ? "text-green-600 font-medium" : 
+                    processingSteps.summarized ? "text-blue-600" : "text-gray-500"
+                  )}>
+                    AI Tags
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {uploadStatus === 'success' && (
-          <div className="flex items-center justify-center text-green-600">
-            <CheckCircle className="h-8 w-8 mr-2" />
-            <span className="text-lg font-medium">{uploadMessage}</span>
-            <button
-              onClick={resetUpload}
-              className="ml-4 p-1 hover:bg-green-100 rounded-full"
-            >
-              <X className="h-5 w-5" />
-            </button>
+          <div className="text-center space-y-3">
+            <div className="flex items-center justify-center text-green-600">
+              <CheckCircle className="h-8 w-8 mr-2" />
+              <span className="text-lg font-medium">{uploadMessage}</span>
+              <button
+                onClick={resetUpload}
+                className="ml-4 p-1 hover:bg-green-100 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* AI Processing Summary */}
+            <div className="text-sm text-green-700 bg-green-50 p-3 rounded-lg">
+              <div className="flex items-center justify-center space-x-4">
+                {processingSteps.summarized && (
+                  <span className="flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    AI Summary Generated
+                  </span>
+                )}
+                {processingSteps.tagged && (
+                  <span className="flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    AI Tags Generated
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -149,11 +317,20 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       {/* File Info */}
       {uploadStatus === 'success' && (
         <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center">
-            <File className="h-5 w-5 text-green-600 mr-2" />
-            <span className="text-sm text-green-800">
-              File processed and stored successfully
-            </span>
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <File className="h-5 w-5 text-green-600 mr-2" />
+              <span className="text-sm text-green-800 font-medium">
+                File processed and stored successfully
+              </span>
+            </div>
+            
+            {/* Processing Details */}
+            <div className="text-xs text-green-700 space-y-1">
+              <div>✅ Text extraction completed</div>
+              {processingSteps.summarized && <div>✅ AI summary generated</div>}
+              {processingSteps.tagged && <div>✅ AI tags generated</div>}
+            </div>
           </div>
         </div>
       )}

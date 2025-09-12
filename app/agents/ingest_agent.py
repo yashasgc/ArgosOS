@@ -2,7 +2,6 @@
 IngestAgent - Handles file ingestion, text extraction, and AI processing
 """
 import hashlib
-import mimetypes
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Upload, FileText, Search, X, Sparkles, Settings, Eye, EyeOff } from 'lucide-react';
 import { useElectron } from './hooks/useElectron';
-import { ElectronFileUpload } from './components/ElectronFileUpload';
+import FileUpload from './components/FileUpload';
 import './index.css';
 
 interface Document {
@@ -26,34 +26,12 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabId>('upload');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [uploading, setUploading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<{ configured: boolean; encrypted: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleFileUpload = async (file: File) => {
-    setUploading(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const newDoc: Document = {
-      id: Date.now().toString(),
-      title: file.name,
-      summary: `Uploaded ${file.name} - ${(file.size / 1024).toFixed(1)} KB`,
-      created_at: Date.now(),
-      tags: ['uploaded']
-    };
-    
-    setDocuments(prev => [newDoc, ...prev]);
-    setUploading(false);
-    setActiveTab('documents');
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFileUpload(file);
-  };
 
   const handleDeleteDocument = (documentId: string) => {
     setDocuments(prev => prev.filter(doc => doc.id !== documentId));
@@ -170,41 +148,13 @@ function App() {
     <div className="animate-fade-in">
       <h2 className="text-3xl font-bold text-gray-900 mb-6">Upload Your Documents</h2>
       <p className="text-gray-600 mb-8">
-        {isElectron 
-          ? "Select files using the native file picker. Our AI will analyze and transform your documents into intelligent, searchable knowledge."
-          : "Drag and drop files here or click to browse. Our AI will analyze and transform your documents into intelligent, searchable knowledge."
-        }
+        Drag and drop files here or click to browse. Our AI will analyze and transform your documents into intelligent, searchable knowledge.
       </p>
       
-      {isElectron ? (
-        <ElectronFileUpload />
-      ) : (
-        <>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-400 transition-colors">
-            <input
-              type="file"
-              id="file-upload"
-              className="hidden"
-              onChange={handleFileSelect}
-              accept=".pdf,.txt,.doc,.docx,.md"
-            />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg font-medium text-gray-900 mb-2">Choose a file or drag & drop</p>
-              <p className="text-sm text-gray-500">Supports PDF, TXT, DOC, DOCX, and Markdown files</p>
-            </label>
-          </div>
-          
-          {uploading && (
-            <div className="mt-6 text-center">
-              <div className="inline-flex items-center space-x-2 text-blue-600">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span>Uploading...</span>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      <FileUpload onUploadSuccess={(document) => {
+        setDocuments(prev => [document, ...prev]);
+        setActiveTab('documents');
+      }} />
       
       <div className="mt-8 flex items-center justify-center text-sm text-gray-500">
         <Sparkles className="w-4 h-4 mr-2" />

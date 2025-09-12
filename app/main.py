@@ -2,16 +2,18 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from cryptography.fernet import Fernet
-import base64
-import os
 import json
+import re
+import uuid
 from pathlib import Path
 from sqlalchemy.orm import Session
+from typing import List
 from app.db.engine import get_db
 from app.agents.ingest_agent import IngestAgent
 from app.agents.retrieval_agent import RetrievalAgent
 from app.agents.postprocessor_agent import PostProcessorAgent
 from app.llm.openai_provider import OpenAIProvider
+from app.utils.validation import FileValidator, ContentValidator, APIKeyValidator, ValidationError
 
 app = FastAPI(
     title="ArgosOS Backend",
@@ -19,12 +21,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware
+# CORS middleware - restrict to specific origins in production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -35,6 +37,8 @@ SECRET_KEY_FILE = CONFIG_DIR / "secret.key"
 
 # Ensure config directory exists
 CONFIG_DIR.mkdir(exist_ok=True)
+
+# Use validation utilities
 
 # Generate or load encryption key
 def get_encryption_key():
@@ -94,6 +98,15 @@ async def root():
 async def store_api_key(request: ApiKeyRequest):
     """Store the API key encrypted in a file"""
     try:
+        # Validate API key based on service
+        if request.service == "openai":
+            is_valid, error = APIKeyValidator.validate_openai_key(request.api_key)
+            if not is_valid:
+                return ApiKeyResponse(
+                    message=f"Invalid API key: {error}",
+                    encrypted=False
+                )
+        
         # Load existing keys
         api_keys = load_encrypted_api_keys()
         
@@ -111,6 +124,11 @@ async def store_api_key(request: ApiKeyRequest):
                 message="Failed to save encrypted API key",
                 encrypted=False
             )
+    except ValidationError as e:
+        return ApiKeyResponse(
+            message=f"Validation error: {str(e)}",
+            encrypted=False
+        )
     except Exception as e:
         return ApiKeyResponse(
             message=f"Failed to store API key: {str(e)}",
@@ -119,7 +137,7 @@ async def store_api_key(request: ApiKeyRequest):
 
 @app.get("/v1/api-key/status")
 async def get_api_key_status():
-    """Check if API key is configured"""
+    """Check if API key is configured (without exposing the actual key)"""
     try:
         api_keys = load_encrypted_api_keys()
         openai_configured = "openai" in api_keys and api_keys["openai"]
@@ -130,7 +148,7 @@ async def get_api_key_status():
             "services": list(api_keys.keys())
         }
     except Exception as e:
-        return {"configured": False, "encrypted": False, "error": str(e)}
+        return {"configured": False, "encrypted": False, "error": "Failed to check API key status"}
 
 @app.delete("/v1/api-key")
 async def clear_api_key():
@@ -167,6 +185,7 @@ def get_ingest_agent():
     if openai_key:
         llm_provider = OpenAIProvider()
         llm_provider.api_key = openai_key
+        llm_provider.client = OpenAI(api_key=openai_key)  # Recreate client with correct key
     else:
         from app.llm.provider import DisabledLLMProvider
         llm_provider = DisabledLLMProvider()
@@ -181,6 +200,7 @@ def get_retrieval_agent():
     if openai_key:
         llm_provider = OpenAIProvider()
         llm_provider.api_key = openai_key
+        llm_provider.client = OpenAI(api_key=openai_key)
     else:
         from app.llm.provider import DisabledLLMProvider
         llm_provider = DisabledLLMProvider()
@@ -195,6 +215,7 @@ def get_postprocessor_agent():
     if openai_key:
         llm_provider = OpenAIProvider()
         llm_provider.api_key = openai_key
+        llm_provider.client = OpenAI(api_key=openai_key)
     else:
         from app.llm.provider import DisabledLLMProvider
         llm_provider = DisabledLLMProvider()
@@ -207,23 +228,31 @@ async def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """Upload and process a file"""
+    """Upload and process a file with security validation"""
     try:
-        # Save uploaded file temporarily
-        temp_dir = Path("./temp_uploads")
-        temp_dir.mkdir(exist_ok=True)
+        # Security validations
+        is_valid, error = FileValidator.validate_filename(file.filename)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error)
         
-        file_path = temp_dir / file.filename
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+        is_valid, error = FileValidator.validate_mime_type(file.content_type)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error)
         
-        # Process with IngestAgent
+        # Read file content
+        content = await file.read()
+        
+        # Validate file size
+        is_valid, error = FileValidator.validate_file_size(content)
+        if not is_valid:
+            raise HTTPException(status_code=413, detail=error)
+        
+        # Sanitize filename
+        safe_filename = FileValidator.sanitize_filename(file.filename)
+        
+        # Process with IngestAgent (no temporary file needed)
         ingest_agent = get_ingest_agent()
-        document, errors = ingest_agent.ingest_file(content, file.filename, file.content_type, db)
-        
-        # Clean up temp file
-        file_path.unlink()
+        document, errors = ingest_agent.ingest_file(content, safe_filename, file.content_type, db)
         
         if document:
             return {
@@ -246,6 +275,8 @@ async def upload_file(
                 "errors": errors
             }
             
+    except HTTPException:
+        raise
     except Exception as e:
         return {
             "success": False,
@@ -259,8 +290,17 @@ async def search_documents(
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
-    """Search documents using natural language"""
+    """Search documents with query validation"""
     try:
+        # Validate search query
+        is_valid, error = ContentValidator.validate_search_query(query)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error)
+        
+        # Validate limit
+        if limit < 1 or limit > 100:
+            raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
+        
         retrieval_agent = get_retrieval_agent()
         results = retrieval_agent.search_documents(query, db, limit)
         
