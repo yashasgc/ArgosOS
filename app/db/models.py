@@ -40,6 +40,20 @@ class Document(Base):
         return f"<Document(id='{self.id[:8]}...', title='{self.title}', size={self.size_bytes})>"
 
 
+class Tag(Base):
+    """Tags table - stores unique tag names"""
+    __tablename__ = "tags"
+    
+    # Primary key - auto-increment integer
+    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # Tag name (stored in lowercase for consistency)
+    name: Mapped[str] = Column(String, unique=True, nullable=False, index=True)
+    
+    def __repr__(self):
+        return f"<Tag(id={self.id}, name='{self.name}')>"
+
+
 
 
 

@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 import json
 
-from app.db.models import Document
-from app.db.schemas import DocumentCreate
+from app.db.models import Document, Tag
+from app.db.schemas import DocumentCreate, TagCreate
 
 
 class DocumentCRUD:
@@ -111,6 +111,33 @@ class DocumentCRUD:
             print(f"Error deleting document {document_id}: {e}")
             db.rollback()
             return False
+
+
+class TagCRUD:
+    @staticmethod
+    def create(db: Session, tag: TagCreate) -> Tag:
+        db_tag = Tag(**tag.dict())
+        db.add(db_tag)
+        db.commit()
+        db.refresh(db_tag)
+        return db_tag
+    
+    @staticmethod
+    def get_by_name(db: Session, name: str) -> Optional[Tag]:
+        return db.query(Tag).filter(Tag.name == name).first()
+    
+    @staticmethod
+    def get_or_create(db: Session, name: str) -> Tag:
+        """Get existing tag or create new one"""
+        tag = TagCRUD.get_by_name(db, name)
+        if not tag:
+            tag = TagCRUD.create(db, TagCreate(name=name))
+        return tag
+    
+    @staticmethod
+    def get_all(db: Session) -> List[Tag]:
+        """Get all tags"""
+        return db.query(Tag).all()
 
 
 

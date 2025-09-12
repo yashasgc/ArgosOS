@@ -318,7 +318,7 @@ async def get_documents(
 ):
     """Get all documents with pagination"""
     try:
-        from app.db.crud import DocumentCRUD
+        from app.db.crud import DocumentCRUD, TagCRUD
         documents = DocumentCRUD.get_all(db, skip=skip, limit=limit)
         
         return {
@@ -342,6 +342,25 @@ async def get_documents(
             "success": False,
             "error": f"Failed to get documents: {str(e)}"
         }
+
+
+@app.get("/api/tags")
+async def get_tags(db: Session = Depends(get_db)):
+    """Get all available tags"""
+    try:
+        from app.db.crud import DocumentCRUD, TagCRUD
+        tags = TagCRUD.get_all(db)
+        
+        return {
+            "success": True,
+            "tags": [{"id": tag.id, "name": tag.name} for tag in tags]
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch tags: {str(e)}"
+        }
+
 
 # Get document content
 @app.get("/api/documents/{document_id}")
@@ -401,7 +420,7 @@ async def delete_document(
 ):
     """Delete a document and its associated file"""
     try:
-        from app.db.crud import DocumentCRUD
+        from app.db.crud import DocumentCRUD, TagCRUD
         
         success = DocumentCRUD.delete(db, document_id)
         

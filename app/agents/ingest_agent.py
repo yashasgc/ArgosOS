@@ -11,7 +11,7 @@ from io import BytesIO
 from sqlalchemy.orm import Session
 
 from app.db.models import Document
-from app.db.crud import DocumentCRUD
+from app.db.crud import DocumentCRUD, TagCRUD
 from app.db.schemas import DocumentCreate
 from app.llm.provider import LLMProvider
 
@@ -210,7 +210,12 @@ class IngestAgent:
                     tag_names = self.llm_provider.generate_tags(extracted_text)
                     if tag_names:
                         print(f"Generated tags: {tag_names}")
-                        # Update document with tags
+                        
+                        # Add tags to tags table (get or create)
+                        for tag_name in tag_names:
+                            TagCRUD.get_or_create(db, tag_name)
+                        
+                        # Update document with tags as JSON
                         document.tags = json.dumps(tag_names)
                         db.commit()
                         tags = tag_names
