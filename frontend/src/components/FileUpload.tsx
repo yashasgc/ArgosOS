@@ -19,7 +19,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
   const { apiCall } = useElectron();
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error' | 'warning'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   const [processingSteps, setProcessingSteps] = useState({
     uploaded: false,
@@ -81,24 +81,29 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       const formData = new FormData();
       formData.append('file', file, file.name);
       
-      console.log('Sending request with FormData:', formData);
-      console.log('FormData entries:', Array.from(formData.entries()));
-      
       const response = await apiCall({
         method: 'POST',
         endpoint: '/api/files/upload',
         data: formData
       });
-      
-      console.log('API response:', response);
-      console.log('Response success:', response.success);
-      console.log('Response error:', response.error);
-      console.log('Response data:', response.data);
 
       if (!response.success) {
-        const errorMsg = response.error || 'Upload failed';
-        console.log('Throwing error with message:', errorMsg);
-        console.log('Response object:', JSON.stringify(response, null, 2));
+        let errorMsg = 'Upload failed';
+        
+        if (response.error) {
+          if (Array.isArray(response.error)) {
+            // Handle Pydantic validation errors
+            errorMsg = response.error.map(err => err.msg || err.message || 'Validation error').join(', ');
+          } else if (typeof response.error === 'string') {
+            errorMsg = response.error;
+          } else if (response.error.message) {
+            errorMsg = response.error.message;
+          } else {
+            errorMsg = JSON.stringify(response.error);
+          }
+        }
+        
+        console.error('Upload failed:', errorMsg);
         throw new Error(errorMsg);
       }
 
@@ -117,8 +122,19 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      setUploadStatus('success');
-      setUploadMessage('File processed successfully!');
+      // Check for API key warnings
+      const hasApiKeyWarnings = response.data.errors?.some((error: string) => 
+        error.includes('OpenAI API key not configured')
+      );
+
+      if (hasApiKeyWarnings) {
+        setUploadStatus('warning');
+        setUploadMessage('File uploaded successfully, but OpenAI API key not configured. AI features (summary, tags) are disabled.');
+      } else {
+        setUploadStatus('success');
+        setUploadMessage('File processed successfully!');
+      }
+      
       onUploadSuccess(response.data.document);
       
       // Reset after 5 seconds
@@ -130,10 +146,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     } catch (error: any) {
       setUploadStatus('error');
       
-      // Debug logging
-      console.error('Upload error details:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error keys:', Object.keys(error || {}));
+      console.error('Upload error:', error);
       
       let errorMessage = 'Upload failed. Please try again.';
       
@@ -142,7 +155,15 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       } else if (error?.message) {
         errorMessage = error.message;
       } else if (error?.error) {
-        errorMessage = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+        if (Array.isArray(error.error)) {
+          errorMessage = error.error.map((err: any) => err.msg || err.message || 'Validation error').join(', ');
+        } else if (typeof error.error === 'string') {
+          errorMessage = error.error;
+        } else {
+          errorMessage = JSON.stringify(error.error);
+        }
+      } else if (error && typeof error === 'object') {
+        errorMessage = JSON.stringify(error);
       } else if (error?.detail) {
         errorMessage = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
       } else if (error) {
@@ -326,6 +347,29 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
                     AI Tags Generated
                   </span>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {uploadStatus === 'warning' && (
+          <div className="text-center space-y-3">
+            <div className="flex items-center justify-center text-yellow-600">
+              <AlertCircle className="h-8 w-8 mr-2" />
+              <span className="text-lg font-medium">{uploadMessage}</span>
+              <button
+                onClick={resetUpload}
+                className="ml-4 p-1 hover:bg-yellow-100 rounded-full"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* API Key Warning */}
+            <div className="text-sm text-yellow-700 bg-yellow-50 p-3 rounded-lg">
+              <div className="flex items-center justify-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <span>Configure OpenAI API key to enable AI features</span>
               </div>
             </div>
           </div>

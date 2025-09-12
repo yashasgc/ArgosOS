@@ -91,35 +91,11 @@ class RetrievalAgent:
         return results
     
     def _execute_sql_query(self, db: Session, sql_query: str, limit: int) -> List[Document]:
-        """Execute SQL query and return Document objects"""
-        try:
-            # Execute raw SQL query
-            from sqlalchemy import text
-            result = db.execute(text(sql_query))
-            
-            # Convert results to Document objects
-            documents = []
-            for row in result.fetchall():
-                # Create a Document object from the row
-                doc = Document(
-                    id=row.id,
-                    title=row.title,
-                    summary=row.summary,
-                    mime_type=row.mime_type,
-                    size_bytes=row.size_bytes,
-                    created_at=row.created_at,
-                    imported_at=row.imported_at,
-                    content_hash="",  # Not available in SELECT queries
-                    storage_path=""   # Not available in SELECT queries
-                )
-                documents.append(doc)
-            
-            return documents[:limit]
-            
-        except Exception as e:
-            # If SQL execution fails, fall back to a simple search
-            print(f"SQL execution failed: {e}")
-            return []
+        """Execute SQL query and return Document objects - DISABLED FOR SECURITY"""
+        # SECURITY: Raw SQL execution disabled to prevent SQL injection
+        # LLM-generated SQL queries are not safe to execute directly
+        print("WARNING: Raw SQL execution disabled for security reasons")
+        return []
     
     def get_document_content(self, document_id: str, db: Session) -> Optional[Dict[str, Any]]:
         """

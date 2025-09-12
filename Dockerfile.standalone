@@ -1,0 +1,64 @@
+
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create data directory
+RUN mkdir -p data
+
+# Copy built frontend
+COPY frontend/dist /app/frontend/dist
+
+# Install Node.js for serving frontend
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+
+# Install a simple HTTP server for frontend
+RUN npm install -g serve
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+# Start Python backend in background\n\
+python start.py &\n\
+BACKEND_PID=$!\n\
+\n\
+# Wait for backend to be ready\n\
+echo "Waiting for backend to start..."\n\
+for i in {1..30}; do\n\
+  if curl -f http://localhost:8000/health > /dev/null 2>&1; then\n\
+    echo "Backend is ready!"\n\
+    break\n\
+  fi\n\
+  sleep 2\n\
+done\n\
+\n\
+# Start frontend server\n\
+echo "Starting frontend server..."\n\
+serve -s frontend/dist -l 3000\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Expose ports
+EXPOSE 8000 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start command
+CMD ["/app/start.sh"]

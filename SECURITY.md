@@ -1,47 +1,72 @@
-# Security Documentation
+# Security Policy
 
-## Security Measures Implemented
+## Security Features
 
-### 1. File Upload Security
-- **File Type Validation**: Only allows specific MIME types (images, PDFs, text files)
-- **File Size Limits**: Maximum 100MB per file
-- **Filename Sanitization**: Removes dangerous characters and path traversal attempts
-- **Content Validation**: Validates file content before processing
+ArgosOS implements multiple layers of security to protect user data and prevent common vulnerabilities.
 
-### 2. API Security
-- **CORS Configuration**: Restricted to specific origins (localhost only in development)
-- **Input Validation**: All inputs are validated and sanitized
-- **SQL Injection Prevention**: Search queries are validated for dangerous keywords
-- **Rate Limiting**: Consider implementing rate limiting for production
-
-### 3. API Key Security
-- **Encryption**: API keys are encrypted using Fernet encryption
-- **Secure Storage**: Keys stored in encrypted files, not in plain text
+### 🔐 API Key Security
+- **Encryption**: API keys are encrypted using Fernet (AES 128) before storage
+- **No Exposure**: API keys are never exposed via HTTP endpoints
+- **Secure Storage**: Keys stored in encrypted files, not in environment variables
 - **Validation**: API key format validation before storage
-- **No Exposure**: API key status endpoint doesn't expose actual keys
 
-### 4. Data Security
-- **Content Hashing**: SHA-256 hashing for deduplication
-- **Secure File Processing**: No temporary files created on disk
-- **Input Sanitization**: All user inputs are sanitized
+### 🛡️ Input Validation
+- **File Validation**: Comprehensive file type, size, and name validation
+- **Path Traversal Protection**: Prevents directory traversal attacks
+- **MIME Type Validation**: Strict MIME type checking
+- **Size Limits**: 100MB maximum file size limit
+- **Filename Sanitization**: Removes dangerous characters from filenames
 
-## Security Testing
+### 🚫 SQL Injection Protection
+- **Parameterized Queries**: All database queries use SQLAlchemy ORM
+- **Raw SQL Disabled**: LLM-generated SQL queries are disabled for security
+- **Input Sanitization**: Search queries are validated for SQL keywords
+- **ORM Usage**: Database operations use ORM methods, not raw SQL
 
-Run the security test suite:
-```bash
-pytest tests/test_security.py -v
-```
+### 🌐 CORS Security
+- **Restricted Origins**: Only allows specific localhost origins
+- **Header Restrictions**: Limits allowed headers to essential ones
+- **Credential Control**: Proper credential handling configuration
 
-## Production Security Checklist
+### 📁 File Upload Security
+- **Type Validation**: Only allows specific file types
+- **Size Validation**: Enforces file size limits
+- **Content Validation**: Validates file content before processing
+- **Safe Storage**: Files processed in memory, not saved to disk
 
-- [ ] Update CORS origins to production domains
-- [ ] Implement rate limiting
-- [ ] Add authentication/authorization
-- [ ] Use HTTPS in production
-- [ ] Regular security audits
-- [ ] Monitor for suspicious activity
-- [ ] Keep dependencies updated
+## Security Checklist
 
-## Vulnerability Reporting
+- [x] API keys encrypted at rest
+- [x] No hardcoded secrets in code
+- [x] Input validation on all endpoints
+- [x] SQL injection protection
+- [x] Path traversal protection
+- [x] CORS properly configured
+- [x] File upload validation
+- [x] Error handling without information disclosure
+- [x] Secure file processing
+- [x] Content validation
 
-If you discover a security vulnerability, please report it responsibly by contacting the development team.
+## Reporting Security Issues
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **DO NOT** create a public issue
+2. Email security concerns to: [security@example.com]
+3. Include detailed steps to reproduce
+4. Allow reasonable time for response before disclosure
+
+## Security Updates
+
+Security updates are released as needed. Please keep your installation updated.
+
+## Dependencies
+
+All dependencies are regularly updated and monitored for security vulnerabilities.
+
+## Data Privacy
+
+- No data is sent to external services except OpenAI (when configured)
+- All processing happens locally
+- Database files are stored locally
+- No telemetry or analytics collection

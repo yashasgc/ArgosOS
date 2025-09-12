@@ -238,15 +238,33 @@ ipcMain.handle('clear-store', () => {
 ipcMain.handle('api-call', async (event, { method, endpoint, data }) => {
   try {
     const axios = require('axios');
-    const response = await axios({
+    
+    // Configure axios based on data type
+    const config = {
       method,
       url: `http://localhost:8000${endpoint}`,
-      data,
       timeout: 30000
-    });
+    };
+    
+    if (data instanceof FormData) {
+      // For FormData, let axios handle the headers automatically
+      config.data = data;
+      config.headers = {
+        'Content-Type': 'multipart/form-data'
+      };
+    } else {
+      // For JSON data
+      config.data = data;
+      config.headers = {
+        'Content-Type': 'application/json'
+      };
+    }
+    
+    const response = await axios(config);
     return { success: true, data: response.data };
   } catch (error) {
     console.error('API call failed:', error.message);
+    console.error('Error response:', error.response?.data);
     return { 
       success: false, 
       error: error.response?.data?.detail || error.message 

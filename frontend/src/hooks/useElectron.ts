@@ -57,14 +57,8 @@ export const useElectron = () => {
     endpoint: string;
     data?: any;
   }) => {
-    console.log('apiCall called with:', options);
-    console.log('isElectron:', isElectron);
-    console.log('window.electronAPI:', window.electronAPI);
-    console.log('typeof window:', typeof window);
-    console.log('window.electronAPI type:', typeof window.electronAPI);
-    
-    if (!isElectron) {
-      console.log('Using web fallback (fetch)');
+    // Always use web fallback (fetch) for file uploads since FormData doesn't work through Electron IPC
+    if (!isElectron || (options.data instanceof FormData)) {
       // Fallback to regular fetch for web
       try {
         const response = await fetch(`http://localhost:8000${options.endpoint}`, {
@@ -75,8 +69,6 @@ export const useElectron = () => {
           body: options.data instanceof FormData ? options.data : (options.data ? JSON.stringify(options.data) : undefined),
         });
         const data = await response.json();
-        console.log('Response data:', data);
-        console.log('Response status:', response.status);
         
         const errorMessage = response.ok ? undefined : (
           data.detail || 
@@ -86,16 +78,13 @@ export const useElectron = () => {
         );
         return { success: response.ok, data, error: errorMessage };
       } catch (error) {
-        console.error('Fetch error:', error);
-        console.error('Error type:', typeof error);
-        console.error('Error message:', error instanceof Error ? error.message : 'Not an Error object');
+        console.error('API call failed:', error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
       }
     }
-    console.log('Using Electron API for request');
+    
     try {
       const result = await window.electronAPI.apiCall(options);
-      console.log('Electron API result:', result);
       return result;
     } catch (error) {
       console.error('Electron API error:', error);
@@ -109,17 +98,14 @@ export const useElectron = () => {
 
     const handleNewDocument = () => {
       // Trigger new document action
-      console.log('New document requested');
     };
 
     const handleOpenDocument = (_event: any, filePath: string) => {
       // Handle file open
-      console.log('Open document:', filePath);
     };
 
     const handleSettings = () => {
       // Open settings
-      console.log('Settings requested');
     };
 
     window.electronAPI.onMenuNewDocument(handleNewDocument);

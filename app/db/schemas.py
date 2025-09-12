@@ -47,8 +47,14 @@ class Document(DocumentBase):
 class DocumentResponse(BaseModel):
     id: str
     title: str
-    tags: List[str]
     summary: Optional[str] = None
+    mime_type: str
+    size_bytes: int
+    created_at: int
+    tags: List[Tag] = []
+    
+    class Config:
+        from_attributes = True
 
 
 class SearchQuery(BaseModel):

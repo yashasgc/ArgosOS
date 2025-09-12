@@ -32,6 +32,8 @@ try:
     from pdfminer.high_level import extract_text as pdfminer_extract
     PDFMINER_AVAILABLE = True
 except ImportError:
+
+    GeneratorExit
     PDFMINER_AVAILABLE = False
 
 try:
@@ -170,6 +172,7 @@ class IngestAgent:
                     errors.append(f"Failed to generate summary: {str(e)}")
             else:
                 print("LLM not available, skipping summary generation")
+                errors.append("OpenAI API key not configured - summary generation skipped")
             
             # Create document record
             current_time = int(time.time() * 1000)
@@ -204,6 +207,7 @@ class IngestAgent:
                     errors.append(f"Failed to generate tags: {str(e)}")
             else:
                 print("LLM not available, skipping tag generation")
+                errors.append("OpenAI API key not configured - tag generation skipped")
             
             return document, errors
             
@@ -364,94 +368,4 @@ class IngestAgent:
             print(f"Text extraction failed: {e}")
             return None
     
-    def ingest_multiple_files(
-        self, 
-        file_paths: List[Path], 
-        db: Session
-    ) -> Tuple[List[Document], List[str]]:
-        """
-        Ingest multiple files in batch.
-        
-        Args:
-            file_paths: List of file paths to ingest
-            db: Database session
-            
-        Returns:
-            Tuple of (list of successfully ingested documents, list of all errors)
-        """
-        documents = []
-        all_errors = []
-        
-        for file_path in file_paths:
-            doc, errors = self.ingest_file(file_path, db)
-            if doc:
-                documents.append(doc)
-            all_errors.extend(errors)
-        
-        return documents, all_errors
-    
-    def reprocess_document(
-        self, 
-        document_id: str, 
-        db: Session
-    ) -> Tuple[bool, List[str]]:
-        """
-        Reprocess an existing document to update tags and summary.
-        
-        Args:
-            document_id: ID of the document to reprocess
-            db: Database session
-            
-        Returns:
-            Tuple of (success boolean, list of error messages)
-        """
-        errors = []
-        
-        try:
-            # Get existing document
-            document = DocumentCRUD.get_by_id(db, document_id)
-            if not document:
-                errors.append(f"Document not found: {document_id}")
-                return False, errors
-            
-            # Read the file
-            file_path = Path(document.storage_path)
-            if not file_path.exists():
-                errors.append(f"File not found: {file_path}")
-                return False, errors
-            
-            # Extract text again
-            extracted_text = self.text_extractor.extract_text(file_path, document.mime_type)
-            if not extracted_text:
-                errors.append(f"Could not extract text from {file_path}")
-                return False, errors
-            
-            # Generate new summary
-            if self.llm_provider.is_available():
-                try:
-                    new_summary = self.llm_provider.summarize(extracted_text)
-                    document.summary = new_summary
-                except Exception as e:
-                    errors.append(f"Failed to generate new summary: {str(e)}")
-            
-            # Generate new tags
-            if self.llm_provider.is_available():
-                try:
-                    # Clear existing tags
-                    document.tags.clear()
-                    
-                    # Generate new tags
-                    tag_names = self.llm_provider.generate_tags(extracted_text)
-                    if tag_names:
-                        TagCRUD.add_to_document(db, document_id, tag_names)
-                except Exception as e:
-                    errors.append(f"Failed to generate new tags: {str(e)}")
-            
-            # Save changes
-            db.commit()
-            return True, errors
-            
-        except Exception as e:
-            errors.append(f"Unexpected error during reprocessing: {str(e)}")
-            return False, errors
     

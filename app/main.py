@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from cryptography.fernet import Fernet
 import json
-import re
-import uuid
 from pathlib import Path
 from sqlalchemy.orm import Session
 from typing import List
@@ -22,13 +20,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware - restrict to specific origins in production
+# CORS middleware - restrict to specific origins for security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization"],  # Restrict headers for security
 )
 
 # Configuration file paths
@@ -165,17 +163,8 @@ async def clear_api_key():
     except Exception as e:
         return {"message": f"Failed to clear API key: {str(e)}"}
 
-@app.get("/v1/api-key/decrypt")
-async def get_decrypted_api_key():
-    """Get the decrypted API key for LLM use"""
-    try:
-        api_keys = load_encrypted_api_keys()
-        if "openai" not in api_keys or not api_keys["openai"]:
-            return {"error": "No OpenAI API key configured"}
-        
-        return {"api_key": api_keys["openai"]}
-    except Exception as e:
-        return {"error": f"Failed to decrypt API key: {str(e)}"}
+# REMOVED: /v1/api-key/decrypt endpoint - SECURITY RISK
+# API keys should never be exposed via HTTP endpoints
 
 # Initialize agents
 def get_ingest_agent():
@@ -231,10 +220,8 @@ async def upload_file(
 ):
     """Upload and process a file with security validation"""
     try:
-        # DEBUG: Log what we're receiving
-        print(f"DEBUG: Filename: {file.filename}")
-        print(f"DEBUG: Content-Type: {file.content_type}")
-        print(f"DEBUG: File size: {file.size if hasattr(file, 'size') else 'unknown'}")
+        # Log file upload details
+        print(f"Uploading file: {file.filename} ({file.content_type})")
         
         # Security validations
         is_valid, error = FileValidator.validate_filename(file.filename)
@@ -259,8 +246,6 @@ async def upload_file(
         safe_filename = FileValidator.sanitize_filename(file.filename)
         
         # Process with IngestAgent (no temporary file needed)
-        print(f"DEBUG: content type: {type(content)}")
-        print(f"DEBUG: content length: {len(content) if hasattr(content, '__len__') else 'no len'}")
         ingest_agent = get_ingest_agent()
         document, errors = ingest_agent.ingest_file(content, safe_filename, file.content_type, db)
         

@@ -4,12 +4,14 @@ A modern desktop application for intelligent document management with AI-powered
 
 ## Features
 
-- **Multi-format Support**: PDF, DOCX, TXT, MD, and image files
+- **Multi-format Support**: PDF, DOCX, TXT, MD, and image files (JPG, PNG, GIF, BMP, TIFF, WebP)
 - **OCR Integration**: Tesseract for text extraction from images and scanned documents
 - **AI Analysis**: OpenAI-powered summarization and tagging
 - **Content Deduplication**: SHA-256 based deduplication
 - **Native Desktop App**: Cross-platform Electron application
 - **Smart Search**: Natural language document search
+- **Security**: Encrypted API key storage, input validation, and SQL injection protection
+- **Distribution**: Ready-to-distribute DMG, EXE, and AppImage packages
 
 ## Quick Start
 
@@ -82,7 +84,41 @@ npm run dev
 
 # Run tests
 poetry run pytest
+
+# Build for distribution
+./build-with-poetry.sh
 ```
+
+## Distribution
+
+### Create Installers
+```bash
+# Build Electron app
+./build-with-poetry.sh
+
+# Create Docker distribution
+python3 create-docker-app.py
+
+# Create standalone executable
+python3 create-standalone-app.py
+```
+
+### Security Features
+- ✅ Encrypted API key storage
+- ✅ Input validation and sanitization
+- ✅ SQL injection protection
+- ✅ CORS configuration
+- ✅ File type and size validation
+- ✅ Path traversal protection
+
+## Architecture
+
+- **Backend**: FastAPI with SQLAlchemy ORM
+- **Frontend**: React with TypeScript and Tailwind CSS
+- **Desktop**: Electron for cross-platform native apps
+- **Database**: SQLite with Alembic migrations
+- **AI**: OpenAI GPT for text analysis
+- **OCR**: Tesseract for image text extraction
 
 ## License
 
