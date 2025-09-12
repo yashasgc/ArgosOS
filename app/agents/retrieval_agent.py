@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from app.db.models import Document
+from app.db.models import Document, Tag
+from app.db.crud import TagCRUD
 from app.llm.provider import LLMProvider
 
 
@@ -33,9 +34,10 @@ class RetrievalAgent:
         Search for documents with tags based on query.
         
         Workflow:
-        1. Read the query
-        2. Create a query to search for documents with tags based on tag metadata from SQLite
-        3. Return the files retrieved and pass the path to postprocessor_agent
+        1. Get a list of tags from tags table
+        2. Pass the tags table and the query to LLM to generate the tags
+        3. Search for documents with those generated tags
+        4. Return the files retrieved and pass the path to postprocessor_agent
         
         Args:
             query: Natural language search query
@@ -67,13 +69,16 @@ class RetrievalAgent:
         }
         
         try:
-            # Step 1: Read the query (already done)
-            search_query = query.strip()
+            # Step 1: Get a list of tags from tags table
+            available_tags = self._get_available_tags(db)
             
-            # Step 2: Create a query to search for documents with tags
-            documents = self._search_documents_with_tags(db, search_query, limit)
+            # Step 2: Pass the tags table and the query to LLM to generate the tags
+            relevant_tags = self._generate_relevant_tags(query, available_tags)
             
-            # Step 3: Return files and prepare paths for postprocessor
+            # Step 3: Search for documents with those generated tags
+            documents = self._search_documents_with_generated_tags(db, relevant_tags, limit)
+            
+            # Step 4: Return files and prepare paths for postprocessor
             file_paths = []
             for doc in documents:
                 # Get file path from document metadata
@@ -90,12 +95,137 @@ class RetrievalAgent:
             
             # Pass file paths to postprocessor agent
             if file_paths and self.llm_provider.is_available():
-                self._pass_to_postprocessor(search_query, file_paths)
+                self._pass_to_postprocessor(query, file_paths)
             
         except Exception as e:
             results['errors'].append(f"Search failed: {str(e)}")
         
         return results
+    
+    def _get_available_tags(self, db: Session) -> List[str]:
+        """
+        Get a list of all available tags from the tags table.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            List of tag names
+        """
+        try:
+            tags = TagCRUD.get_all(db)
+            return [tag.name for tag in tags]
+        except Exception as e:
+            print(f"Error getting available tags: {e}")
+            return []
+    
+    def _generate_relevant_tags(self, query: str, available_tags: List[str]) -> List[str]:
+        """
+        Use LLM to generate relevant tags from the query based on available tags.
+        
+        Args:
+            query: Natural language search query
+            available_tags: List of available tags from the database
+            
+        Returns:
+            List of relevant tag names
+        """
+        if not self.llm_provider.is_available():
+            print("LLM not available, falling back to simple text matching")
+            # Fallback: simple text matching
+            relevant_tags = []
+            query_lower = query.lower()
+            for tag in available_tags:
+                if tag.lower() in query_lower:
+                    relevant_tags.append(tag)
+            return relevant_tags
+        
+        try:
+            # Create a prompt for the LLM to select relevant tags
+            prompt = f"""
+Given the following search query and available tags, select the most relevant tags that match the query.
+
+Search Query: "{query}"
+
+Available Tags: {', '.join(available_tags)}
+
+Please return only the tag names that are most relevant to the search query, separated by commas.
+If no tags are relevant, return an empty response.
+
+Relevant tags:"""
+
+            response = self.llm_provider.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1
+            )
+            
+            # Parse the response
+            relevant_tags_text = response.choices[0].message.content.strip()
+            if not relevant_tags_text:
+                return []
+            
+            # Split by comma and clean up
+            relevant_tags = [tag.strip() for tag in relevant_tags_text.split(',')]
+            
+            # Filter to only include tags that actually exist in our database
+            valid_tags = [tag for tag in relevant_tags if tag in available_tags]
+            
+            print(f"Generated relevant tags: {valid_tags}")
+            return valid_tags
+            
+        except Exception as e:
+            print(f"Error generating relevant tags: {e}")
+            # Fallback: simple text matching
+            relevant_tags = []
+            query_lower = query.lower()
+            for tag in available_tags:
+                if tag.lower() in query_lower:
+                    relevant_tags.append(tag)
+            return relevant_tags
+    
+    def _search_documents_with_generated_tags(self, db: Session, relevant_tags: List[str], limit: int) -> List[Document]:
+        """
+        Search for documents that have any of the relevant tags.
+        
+        Args:
+            db: Database session
+            relevant_tags: List of relevant tag names
+            limit: Maximum number of results
+            
+        Returns:
+            List of Document objects with matching tags
+        """
+        try:
+            from app.db.crud import DocumentCRUD
+            
+            if not relevant_tags:
+                # If no relevant tags, fall back to general search
+                return DocumentCRUD.search(db, "", 0, limit)
+            
+            # Search for documents that contain any of the relevant tags
+            documents = []
+            for tag in relevant_tags:
+                # Search for documents containing this tag in their JSON tags field
+                tag_docs = db.query(Document).filter(
+                    Document.tags.contains(f'"{tag}"')
+                ).limit(limit).all()
+                documents.extend(tag_docs)
+            
+            # Remove duplicates
+            seen_ids = set()
+            unique_docs = []
+            for doc in documents:
+                if doc.id not in seen_ids:
+                    unique_docs.append(doc)
+                    seen_ids.add(doc.id)
+            
+            return unique_docs[:limit]
+            
+        except Exception as e:
+            print(f"Error searching documents with generated tags: {e}")
+            return []
     
     def _search_documents_with_tags(self, db: Session, query: str, limit: int) -> List[Document]:
         """
@@ -268,13 +398,20 @@ class RetrievalAgent:
     
     def _format_documents(self, documents: List[Document]) -> List[Dict[str, Any]]:
         """Format Document objects into dictionaries for API responses."""
+        import json
         formatted_docs = []
         for doc in documents:
+            # Parse tags from JSON string
+            try:
+                tags = json.loads(doc.tags) if doc.tags else []
+            except (json.JSONDecodeError, TypeError):
+                tags = []
+            
             formatted_doc = {
                 'id': doc.id,
                 'title': doc.title,
                 'summary': doc.summary,
-                'tags': [],  # Tags not available in raw SQL results
+                'tags': tags,
                 'mime_type': doc.mime_type,
                 'size_bytes': doc.size_bytes,
                 'created_at': doc.created_at,
