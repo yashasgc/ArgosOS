@@ -143,7 +143,7 @@ async def get_api_key_status():
         openai_configured = "openai" in api_keys and api_keys["openai"]
         
         return {
-            "configured": openai_configured,
+            "configured": bool(openai_configured),
             "encrypted": True,
             "services": list(api_keys.keys())
         }

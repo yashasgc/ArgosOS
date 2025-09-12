@@ -3,7 +3,8 @@ Security tests for ArgosOS backend
 """
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app, validate_filename, validate_file_type, sanitize_filename
+from app.main import app
+from app.utils.validation import FileValidator, ContentValidator, APIKeyValidator
 
 client = TestClient(app)
 
@@ -21,7 +22,8 @@ class TestSecurityValidation:
         ]
         
         for filename in valid_filenames:
-            assert validate_filename(filename), f"Should accept: {filename}"
+            is_valid, _ = FileValidator.validate_filename(filename)
+            assert is_valid, f"Should accept: {filename}"
     
     def test_validate_filename_bad_cases(self):
         """Test invalid filenames"""
@@ -43,7 +45,8 @@ class TestSecurityValidation:
         
         for filename in invalid_filenames:
             if filename is not None:
-                assert not validate_filename(filename), f"Should reject: {filename}"
+                is_valid, _ = FileValidator.validate_filename(filename)
+                assert not is_valid, f"Should reject: {filename}"
     
     def test_validate_file_type(self):
         """Test file type validation"""
@@ -56,7 +59,7 @@ class TestSecurityValidation:
         ]
         
         for mime_type in valid_types:
-            assert validate_file_type(mime_type), f"Should accept: {mime_type}"
+            assert FileValidator.validate_mime_type(mime_type), f"Should accept: {mime_type}"
         
         invalid_types = [
             "application/x-executable",
@@ -66,7 +69,7 @@ class TestSecurityValidation:
         ]
         
         for mime_type in invalid_types:
-            assert not validate_file_type(mime_type), f"Should reject: {mime_type}"
+            assert not FileValidator.validate_mime_type(mime_type), f"Should reject: {mime_type}"
     
     def test_sanitize_filename(self):
         """Test filename sanitization"""
@@ -88,7 +91,7 @@ class TestSecurityValidation:
         ]
         
         for input_name, expected in test_cases:
-            result = sanitize_filename(input_name)
+            result = FileValidator.sanitize_filename(input_name)
             assert result == expected, f"Input: {input_name}, Expected: {expected}, Got: {result}"
 
 class TestFileUploadSecurity:
