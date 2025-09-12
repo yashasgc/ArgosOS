@@ -13,6 +13,7 @@ from app.agents.ingest_agent import IngestAgent
 from app.agents.retrieval_agent import RetrievalAgent
 from app.agents.postprocessor_agent import PostProcessorAgent
 from app.llm.openai_provider import OpenAIProvider
+from openai import OpenAI
 from app.utils.validation import FileValidator, ContentValidator, APIKeyValidator, ValidationError
 
 app = FastAPI(
@@ -140,12 +141,12 @@ async def get_api_key_status():
     """Check if API key is configured (without exposing the actual key)"""
     try:
         api_keys = load_encrypted_api_keys()
-        openai_configured = "openai" in api_keys and api_keys["openai"]
+        openai_configured = "openai" in api_keys and bool(api_keys["openai"])
         
         return {
-            "configured": bool(openai_configured),
+            "configured": openai_configured,
             "encrypted": True,
-            "services": list(api_keys.keys())
+            "services": list(api_keys.keys()) if api_keys else []
         }
     except Exception as e:
         return {"configured": False, "encrypted": False, "error": "Failed to check API key status"}

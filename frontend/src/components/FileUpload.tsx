@@ -118,7 +118,8 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       }, 5000);
     } catch (error: any) {
       setUploadStatus('error');
-      setUploadMessage(error.message || 'Upload failed. Please try again.');
+      const errorMessage = error?.message || error?.error || error?.detail || (typeof error === 'string' ? error : 'Upload failed. Please try again.');
+      setUploadMessage(errorMessage);
     } finally {
       setUploading(false);
     }

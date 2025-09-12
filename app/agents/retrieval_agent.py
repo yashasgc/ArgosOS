@@ -94,7 +94,8 @@ class RetrievalAgent:
         """Execute SQL query and return Document objects"""
         try:
             # Execute raw SQL query
-            result = db.execute(sql_query)
+            from sqlalchemy import text
+            result = db.execute(text(sql_query))
             
             # Convert results to Document objects
             documents = []
