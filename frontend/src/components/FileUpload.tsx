@@ -91,9 +91,14 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       });
       
       console.log('API response:', response);
+      console.log('Response success:', response.success);
+      console.log('Response error:', response.error);
+      console.log('Response data:', response.data);
 
       if (!response.success) {
-        throw new Error(response.error || 'Upload failed');
+        const errorMsg = response.error || 'Upload failed';
+        console.log('Throwing error with message:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       // Step 2: Text extraction (simulated delay)

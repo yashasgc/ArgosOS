@@ -57,6 +57,10 @@ export const useElectron = () => {
     endpoint: string;
     data?: any;
   }) => {
+    console.log('apiCall called with:', options);
+    console.log('isElectron:', isElectron);
+    console.log('window.electronAPI:', window.electronAPI);
+    
     if (!isElectron) {
       // Fallback to regular fetch for web
       try {
@@ -68,10 +72,14 @@ export const useElectron = () => {
           body: options.data instanceof FormData ? options.data : (options.data ? JSON.stringify(options.data) : undefined),
         });
         const data = await response.json();
+        console.log('Response data:', data);
+        console.log('Response status:', response.status);
+        
         const errorMessage = response.ok ? undefined : (
-          data.detail?.message || 
+          data.detail || 
           data.message || 
-          (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || data))
+          data.error ||
+          `HTTP ${response.status}: ${response.statusText}`
         );
         return { success: response.ok, data, error: errorMessage };
       } catch (error) {
@@ -81,7 +89,15 @@ export const useElectron = () => {
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
       }
     }
-    return await window.electronAPI.apiCall(options);
+    console.log('Using Electron API for request');
+    try {
+      const result = await window.electronAPI.apiCall(options);
+      console.log('Electron API result:', result);
+      return result;
+    } catch (error) {
+      console.error('Electron API error:', error);
+      throw error;
+    }
   }, [isElectron]);
 
   // Menu event handlers
