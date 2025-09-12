@@ -48,7 +48,7 @@ function createWindow() {
     
     // Wait for Vite to be ready, then load
     const loadViteApp = () => {
-      const ports = [5173, 5174, 5175, 3000, 8080];
+      const ports = [5173, 5174, 5175, 5176, 3000, 8080];
       let loaded = false;
       
       const tryLoad = (port) => {

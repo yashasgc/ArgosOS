@@ -118,7 +118,20 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       }, 5000);
     } catch (error: any) {
       setUploadStatus('error');
-      const errorMessage = error?.message || error?.error || error?.detail || (typeof error === 'string' ? error : 'Upload failed. Please try again.');
+      let errorMessage = 'Upload failed. Please try again.';
+      
+      if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error) {
+        errorMessage = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+      } else if (error?.detail) {
+        errorMessage = typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail);
+      } else if (error) {
+        errorMessage = JSON.stringify(error);
+      }
+      
       setUploadMessage(errorMessage);
     } finally {
       setUploading(false);
