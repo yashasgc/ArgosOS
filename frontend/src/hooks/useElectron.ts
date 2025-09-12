@@ -85,7 +85,7 @@ export const useElectron = () => {
       console.log('New document requested');
     };
 
-    const handleOpenDocument = (event: any, filePath: string) => {
+    const handleOpenDocument = (_event: any, filePath: string) => {
       // Handle file open
       console.log('Open document:', filePath);
     };

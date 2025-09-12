@@ -1,6 +1,15 @@
 import { Search, Tag, Calendar, File, Eye } from 'lucide-react';
-import type { Document } from '../lib/api';
 import { cn } from '../lib/utils';
+
+interface Document {
+  id: string;
+  title: string;
+  summary?: string;
+  created_at: number;
+  tags: Array<{ name: string }>;
+  mime_type?: string;
+  size_bytes?: number;
+}
 
 interface SearchResultCardProps {
   document: Document;
@@ -81,12 +90,12 @@ export default function SearchResultCard({ document, query, onClick, className }
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <span className="text-2xl">{getFileIcon(document.mime_type)}</span>
+          <span className="text-2xl">{getFileIcon(document.mime_type || '')}</span>
           <div>
             <h3 className="font-medium text-gray-900 truncate max-w-[250px]">
               {highlightQuery(document.title, query)}
             </h3>
-            <p className="text-xs text-gray-500">{document.mime_type}</p>
+            <p className="text-xs text-gray-500">{document.mime_type || 'Unknown type'}</p>
           </div>
         </div>
         <button className="p-1 hover:bg-gray-100 rounded">
@@ -108,13 +117,13 @@ export default function SearchResultCard({ document, query, onClick, className }
       {document.tags && document.tags.length > 0 && (
         <div className="mb-3">
           <div className="flex flex-wrap gap-1">
-            {document.tags.slice(0, 3).map((tagName, index) => (
+            {document.tags.slice(0, 3).map((tag, index) => (
               <span
                 key={index}
                 className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
               >
                 <Tag className="h-3 w-3 mr-1" />
-                {tagName}
+                {tag.name}
               </span>
             ))}
             {document.tags.length > 3 && (
@@ -131,7 +140,7 @@ export default function SearchResultCard({ document, query, onClick, className }
         <div className="flex items-center space-x-3">
           <div className="flex items-center">
             <File className="h-3 w-3 mr-1" />
-            {document.size_bytes > 0 ? `${(document.size_bytes / 1024).toFixed(1)} KB` : 'Unknown size'}
+            {(document.size_bytes || 0) > 0 ? `${((document.size_bytes || 0) / 1024).toFixed(1)} KB` : 'Unknown size'}
           </div>
           <div className="flex items-center">
             <Calendar className="h-3 w-3 mr-1" />

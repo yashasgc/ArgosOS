@@ -13,7 +13,7 @@ interface UploadResult {
 }
 
 export const ElectronFileUpload: React.FC = () => {
-  const { selectFile, isElectron, apiCall } = useElectron();
+  const { selectFile, isElectron } = useElectron();
   const [uploads, setUploads] = useState<UploadResult[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 

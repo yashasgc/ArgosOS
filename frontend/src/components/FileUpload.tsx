@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, File, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, File, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useElectron } from '../hooks/useElectron';
 

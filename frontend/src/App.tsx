@@ -9,7 +9,9 @@ interface Document {
   title: string;
   summary?: string;
   created_at: number;
-  tags: string[];
+  tags: Array<{ name: string }>;
+  mime_type?: string;
+  size_bytes?: number;
 }
 
 type TabId = 'upload' | 'documents' | 'search' | 'settings';
@@ -136,7 +138,7 @@ function App() {
         <div className="flex space-x-1">
           {doc.tags.map((tag, index) => (
             <span key={index} className="px-2 py-1 bg-gray-100 rounded-full">
-              {tag}
+              {tag.name}
             </span>
           ))}
         </div>
