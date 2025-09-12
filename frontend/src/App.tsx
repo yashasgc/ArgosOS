@@ -204,9 +204,10 @@ function App() {
 
       if (result.success) {
         console.log('Document content loaded:', result);
-        // For text files and PDFs (which have extracted text), show content in a modal within the app
-        if (result.mime_type?.startsWith('text/') || result.mime_type === 'application/pdf') {
-          console.log('Creating modal for text/PDF file:', result.mime_type);
+        const documentData = result.data;
+        // For text files, show content in a modal within the app
+        if (documentData.mime_type?.startsWith('text/')) {
+          console.log('Creating modal for text file:', documentData.mime_type);
           // Create a modal overlay
           const modal = document.createElement('div');
           modal.style.cssText = `
@@ -253,7 +254,7 @@ function App() {
           closeButton.onclick = () => document.body.removeChild(modal);
           
           const title = document.createElement('h2');
-          title.textContent = result.title;
+          title.textContent = documentData.title;
           title.style.cssText = `
             margin: 0 0 16px 0;
             font-size: 24px;
@@ -262,7 +263,7 @@ function App() {
           `;
           
           const content = document.createElement('pre');
-          content.textContent = result.content;
+          content.textContent = documentData.content;
           content.style.cssText = `
             white-space: pre-wrap;
             word-wrap: break-word;
@@ -290,22 +291,27 @@ function App() {
           
           document.body.appendChild(modal);
         } else {
-          console.log('Creating download for binary file:', result.mime_type);
-          // For binary files, trigger download
-          const downloadUrl = `/api/documents/${documentId}/download`;
+          console.log('Opening file directly:', documentData.mime_type);
+          // For PDFs and other files, open them with system default application
+          const downloadUrl = `http://localhost:8000/api/documents/${documentId}/download`;
           if (isElectron) {
-            console.log('Opening download URL in Electron');
-            // In Electron, use the download URL directly
-            window.open(downloadUrl, '_blank');
+            console.log('Opening file with system default application');
+            // Download file first, then open with system default app
+            try {
+              const response = await fetch(downloadUrl);
+              const arrayBuffer = await response.arrayBuffer();
+              const uint8Array = new Uint8Array(arrayBuffer);
+              
+              // Pass the file data directly to Electron
+              await window.electronAPI.openFileData(uint8Array, documentData.title || 'document.pdf');
+            } catch (error) {
+              console.error('Failed to open file:', error);
+              // Fallback to window.open
+              window.open(downloadUrl, '_blank');
+            }
           } else {
-            console.log('Creating download link in browser');
-            // In browser, create a temporary link and click it
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = result.title || 'document';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            console.log('Opening file in browser');
+            window.open(downloadUrl, '_blank');
           }
         }
       } else {
@@ -347,7 +353,7 @@ function App() {
         </div>
       </div>
       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{doc.title}</h3>
-      {doc.summary && (
+      {doc.summary && doc.summary.trim() && (
         <p className="text-sm text-gray-600 mb-3 line-clamp-2">{doc.summary}</p>
       )}
       {doc.tags && doc.tags.length > 0 && (

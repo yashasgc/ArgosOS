@@ -234,6 +234,60 @@ ipcMain.handle('clear-store', () => {
   store.clear();
 });
 
+// Handle file opening with system default application
+ipcMain.handle('open-file', async (event, fileUrl) => {
+  try {
+    console.log('Opening file:', fileUrl);
+    
+    if (fileUrl.startsWith('http://localhost:') || fileUrl.startsWith('https://')) {
+      // For local server URLs, open in default browser
+      await shell.openExternal(fileUrl);
+    } else {
+      // For local file paths, open with default application
+      await shell.openPath(fileUrl);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('File open error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle file opening with file data
+ipcMain.handle('open-file-data', async (event, fileData, filename) => {
+  try {
+    console.log('Opening file data:', filename);
+    
+    const { app } = require('electron');
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Create a temporary file path
+    const tempDir = app.getPath('temp');
+    const tempFilePath = path.join(tempDir, `argos-temp-${Date.now()}-${filename}`);
+    
+    // Write the file data to temp file
+    fs.writeFileSync(tempFilePath, Buffer.from(fileData));
+    
+    // Open the temporary file with system default application
+    await shell.openPath(tempFilePath);
+    
+    // Clean up the temp file after a delay
+    setTimeout(() => {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (err) {
+        console.log('Could not delete temp file:', err.message);
+      }
+    }, 30000); // 30 seconds delay
+    
+    return { success: true };
+  } catch (error) {
+    console.error('File open error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Backend API calls
 ipcMain.handle('api-call', async (event, { method, endpoint, data }) => {
   try {

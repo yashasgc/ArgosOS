@@ -538,11 +538,11 @@ async def download_document(
         if not document.storage_path or not Path(document.storage_path).exists():
             raise HTTPException(status_code=404, detail="Document file not found")
         
-        # Return file for download
+        # Return file for opening (not downloading)
         return FileResponse(
             path=document.storage_path,
-            filename=document.title,
-            media_type=document.mime_type
+            media_type=document.mime_type,
+            headers={"Content-Disposition": f"inline; filename=\"{document.title}\""}
         )
         
     except HTTPException:

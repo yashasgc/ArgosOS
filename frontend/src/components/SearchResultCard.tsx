@@ -53,7 +53,7 @@ export default function SearchResultCard({ document, query, onClick, className }
   };
 
   const getRelevantSnippet = (summary: string | undefined, query: string, maxLength: number = 200) => {
-    if (!summary) return 'No summary available';
+    if (!summary || !summary.trim()) return 'No summary available';
     
     if (!query.trim()) {
       return summary.length > maxLength ? summary.substring(0, maxLength) + '...' : summary;

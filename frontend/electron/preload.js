@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // API calls
   apiCall: (options) => ipcRenderer.invoke('api-call', options),
   
+  // File operations
+  openFile: (fileUrl) => ipcRenderer.invoke('open-file', fileUrl),
+  openFileData: (fileData, filename) => ipcRenderer.invoke('open-file-data', fileData, filename),
+  
   // Menu events
   onMenuNewDocument: (callback) => ipcRenderer.on('menu-new-document', callback),
   onMenuOpenDocument: (callback) => ipcRenderer.on('menu-open-document', callback),

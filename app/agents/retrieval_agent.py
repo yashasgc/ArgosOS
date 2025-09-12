@@ -73,7 +73,7 @@ class RetrievalAgent:
             available_tags = self._get_available_tags(db)
             
             # Step 2: Pass the tags table and the query to LLM to generate the tags
-            relevant_tags = self._generate_relevant_tags(query, available_tags)
+            relevant_tags = self._generate_relevant_tags(query, available_tags, db)
             
             # Step 3: Search for documents with those generated tags
             documents = self._search_documents_with_generated_tags(db, relevant_tags, limit)
@@ -110,7 +110,7 @@ class RetrievalAgent:
             print(f"Error getting available tags: {e}")
             return []
     
-    def _generate_relevant_tags(self, query: str, available_tags: List[str]) -> List[str]:
+    def _generate_relevant_tags(self, query: str, available_tags: List[str], db: Session) -> List[str]:
         """
         Use LLM to generate relevant tags from the query based on available tags.
         
@@ -123,13 +123,26 @@ class RetrievalAgent:
         """
         if not self.llm_provider.is_available():
             print("LLM not available, falling back to simple text matching")
-            # Fallback: simple text matching
-            relevant_tags = []
-            query_lower = query.lower()
-            for tag in available_tags:
-                if tag.lower() in query_lower:
-                    relevant_tags.append(tag)
-            return relevant_tags
+            # Fallback: simple text matching in tags, titles, and summaries
+            from app.db.crud import DocumentCRUD
+            try:
+                # Use the general search which looks in titles, summaries, and tags
+                documents = DocumentCRUD.search(db, query, 0, limit)
+                # Extract unique tags from matching documents
+                relevant_tags = set()
+                for doc in documents:
+                    if doc.tags:
+                        try:
+                            import json
+                            doc_tags = json.loads(doc.tags)
+                            for tag in doc_tags:
+                                relevant_tags.add(tag)
+                        except:
+                            pass
+                return list(relevant_tags)
+            except Exception as e:
+                print(f"Error in fallback search: {e}")
+                return []
         
         try:
             # Create a prompt for the LLM to select relevant tags
@@ -192,8 +205,9 @@ Relevant tags:"""
             from app.db.crud import DocumentCRUD
             
             if not relevant_tags:
-                # If no relevant tags, fall back to general search
-                return DocumentCRUD.search(db, "", 0, limit)
+                # If no relevant tags, return empty results instead of all documents
+                print("No relevant tags found, returning empty results")
+                return []
             
             # Search for documents that contain any of the relevant tags
             documents = []

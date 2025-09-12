@@ -212,7 +212,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
               className="hidden"
               id="file-upload"
               onChange={handleFileSelect}
-              accept=".pdf,.txt,.doc,.docx,.md,.rtf"
+              accept=".pdf,.txt,.doc,.docx,.md,.rtf,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.webp"
             />
             <label
               htmlFor="file-upload"

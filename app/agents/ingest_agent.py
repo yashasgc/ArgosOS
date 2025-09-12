@@ -155,8 +155,9 @@ class IngestAgent:
             print(f"Extracting text from {filename}...")
             extracted_text = self._extract_text(file_data, mime_type, filename)
             if not extracted_text:
-                errors.append(f"Could not extract text from {filename}")
-                return None, errors
+                print(f"Could not extract text from {filename}, creating document without content")
+                extracted_text = ""  # Create empty text instead of failing
+                errors.append(f"Could not extract text from {filename} - document created without content")
             
             print(f"Successfully extracted {len(extracted_text)} characters")
             
@@ -277,9 +278,11 @@ class IngestAgent:
         try:
             # Open image from bytes
             image = Image.open(BytesIO(file_data))
+            print(f"Image format: {image.format}, mode: {image.mode}, size: {image.size}")
             
             # Convert to RGB if necessary (for some image formats)
-            if image.mode != 'RGB':
+            if image.mode not in ['RGB', 'L']:
+                print(f"Converting image from {image.mode} to RGB")
                 image = image.convert('RGB')
             
             # Extract text using Tesseract
@@ -297,6 +300,8 @@ class IngestAgent:
             
         except Exception as e:
             print(f"OCR extraction failed: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _extract_from_pdf(self, file_data: bytes) -> Optional[str]:
