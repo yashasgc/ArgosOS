@@ -30,6 +30,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [llmAvailable, setLlmAvailable] = useState<boolean | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
@@ -74,9 +75,11 @@ function App() {
 
       if (result.success) {
         setSearchResults(result.data.results.documents || []);
+        setLlmAvailable(result.data.results.llm_available || false);
       } else {
         console.error('Search failed:', result.error);
         setSearchResults([]);
+        setLlmAvailable(null);
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -192,19 +195,156 @@ function App() {
     { id: 'settings', label: 'Settings', icon: Settings, count: null }
   ];
 
+  const handleOpenDocument = async (documentId: string) => {
+    try {
+      const result = await apiCall({
+        method: 'GET',
+        endpoint: `/api/documents/${documentId}/content`
+      });
+
+      if (result.success) {
+        console.log('Document content loaded:', result);
+        // For text files and PDFs (which have extracted text), show content in a modal within the app
+        if (result.mime_type?.startsWith('text/') || result.mime_type === 'application/pdf') {
+          console.log('Creating modal for text/PDF file:', result.mime_type);
+          // Create a modal overlay
+          const modal = document.createElement('div');
+          modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+          `;
+          
+          const modalContent = document.createElement('div');
+          modalContent.style.cssText = `
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            position: relative;
+          `;
+          
+          const closeButton = document.createElement('button');
+          closeButton.innerHTML = '✕';
+          closeButton.style.cssText = `
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+            padding: 4px;
+            border-radius: 4px;
+          `;
+          closeButton.onclick = () => document.body.removeChild(modal);
+          
+          const title = document.createElement('h2');
+          title.textContent = result.title;
+          title.style.cssText = `
+            margin: 0 0 16px 0;
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f2937;
+          `;
+          
+          const content = document.createElement('pre');
+          content.textContent = result.content;
+          content.style.cssText = `
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            color: #374151;
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+          `;
+          
+          modalContent.appendChild(closeButton);
+          modalContent.appendChild(title);
+          modalContent.appendChild(content);
+          modal.appendChild(modalContent);
+          
+          // Close on backdrop click
+          modal.onclick = (e) => {
+            if (e.target === modal) {
+              document.body.removeChild(modal);
+            }
+          };
+          
+          document.body.appendChild(modal);
+        } else {
+          console.log('Creating download for binary file:', result.mime_type);
+          // For binary files, trigger download
+          const downloadUrl = `/api/documents/${documentId}/download`;
+          if (isElectron) {
+            console.log('Opening download URL in Electron');
+            // In Electron, use the download URL directly
+            window.open(downloadUrl, '_blank');
+          } else {
+            console.log('Creating download link in browser');
+            // In browser, create a temporary link and click it
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = result.title || 'document';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        }
+      } else {
+        console.error('Failed to open document:', result.error);
+      }
+    } catch (error) {
+      console.error('Error opening document:', error);
+    }
+  };
+
   const renderDocumentCard = (doc: Document, showDelete = true) => (
-    <div key={doc.id} className="card hover-lift">
+    <div 
+      key={doc.id} 
+      className="card hover-lift cursor-pointer"
+      onDoubleClick={() => handleOpenDocument(doc.id)}
+      title="Double-click to open document"
+    >
       <div className="flex items-start justify-between mb-3">
         <FileText className="w-8 h-8 text-blue-600 flex-shrink-0" />
-        {showDelete && (
-          <button
-            onClick={() => handleDeleteDocument(doc.id)}
-            className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
-            title="Delete document"
+        <div className="flex gap-2">
+          <div
+            className="text-slate-400 hover:text-blue-500 transition-colors p-2 hover:bg-blue-50 rounded-lg"
+            title="Double-click to open document"
           >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+            <Eye className="w-5 h-5" />
+          </div>
+          {showDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent double-click from triggering
+                handleDeleteDocument(doc.id);
+              }}
+              className="text-slate-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-lg"
+              title="Delete document"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
       <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{doc.title}</h3>
       {doc.summary && (
@@ -294,9 +434,20 @@ function App() {
       
       {searchQuery && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Search Results for "{searchQuery}"
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Search Results for "{searchQuery}"
+            </h3>
+            {llmAvailable !== null && (
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                llmAvailable 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {llmAvailable ? '🤖 AI-Powered Search' : '📚 Using oldschool way (no API key found)'}
+              </div>
+            )}
+          </div>
           {searchLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>

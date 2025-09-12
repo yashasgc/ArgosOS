@@ -298,6 +298,10 @@ async def search_documents(
         retrieval_agent = get_retrieval_agent()
         results = retrieval_agent.search_documents(query, db, limit)
         
+        # Check if LLM is available
+        llm_available = retrieval_agent.llm_provider.is_available()
+        results['llm_available'] = llm_available
+        
         # If we have document IDs, process them with postprocessor agent
         if results.get('document_ids') and results['document_ids']:
             postprocessor_agent = get_postprocessor_agent()
@@ -341,6 +345,7 @@ async def get_documents(
                     "mime_type": doc.mime_type,
                     "size_bytes": doc.size_bytes,
                     "created_at": doc.created_at,
+                    "storage_path": doc.storage_path,
                     "tags": json.loads(doc.tags) if doc.tags else []
                 }
                 for doc in documents
@@ -421,6 +426,129 @@ async def process_documents(
             "success": False,
             "error": f"Processing failed: {str(e)}"
         }
+
+# Get document content endpoint
+@app.get("/api/documents/{document_id}/content")
+async def get_document_content(
+    document_id: str,
+    db: Session = Depends(get_db)
+):
+    """Get the content of a document"""
+    try:
+        from app.db.crud import DocumentCRUD
+        
+        # Get document from database
+        document = DocumentCRUD.get_by_id(db, document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Read file content
+        if not document.storage_path or not Path(document.storage_path).exists():
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        with open(document.storage_path, 'rb') as f:
+            content = f.read()
+        
+        # Return content based on file type
+        if document.mime_type.startswith('text/') or document.mime_type == 'application/pdf':
+            # For text files and PDFs, return extracted text content
+            if document.mime_type == 'application/pdf':
+                # For PDFs, we need to extract text content using the ingest agent
+                try:
+                    from app.agents.ingest_agent import IngestAgent
+                    from app.llm.openai_provider import OpenAIProvider
+                    
+                    # Create a minimal ingest agent for text extraction
+                    llm_provider = OpenAIProvider()
+                    ingest_agent = IngestAgent(llm_provider)
+                    extracted_text = ingest_agent._extract_text(content, document.mime_type, document.title)
+                    
+                    if extracted_text:
+                        return {
+                            "success": True,
+                            "content": extracted_text,
+                            "mime_type": document.mime_type,
+                            "title": document.title
+                        }
+                    else:
+                        # Fallback to base64 if extraction fails
+                        import base64
+                        return {
+                            "success": True,
+                            "content": base64.b64encode(content).decode('utf-8'),
+                            "mime_type": document.mime_type,
+                            "title": document.title,
+                            "is_binary": True
+                        }
+                except Exception as e:
+                    print(f"PDF extraction error: {e}")
+                    # Fallback to base64 if extraction fails
+                    import base64
+                    return {
+                        "success": True,
+                        "content": base64.b64encode(content).decode('utf-8'),
+                        "mime_type": document.mime_type,
+                        "title": document.title,
+                        "is_binary": True
+                    }
+            else:
+                # For text files, return decoded content
+                return {
+                    "success": True,
+                    "content": content.decode('utf-8'),
+                    "mime_type": document.mime_type,
+                    "title": document.title
+                }
+        else:
+            # For other binary files, return base64 encoded content
+            import base64
+            return {
+                "success": True,
+                "content": base64.b64encode(content).decode('utf-8'),
+                "mime_type": document.mime_type,
+                "title": document.title,
+                "is_binary": True
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get document content: {str(e)}"
+        }
+
+# Download document endpoint
+@app.get("/api/documents/{document_id}/download")
+async def download_document(
+    document_id: str,
+    db: Session = Depends(get_db)
+):
+    """Download a document file"""
+    try:
+        from app.db.crud import DocumentCRUD
+        from fastapi.responses import FileResponse
+        
+        # Get document from database
+        document = DocumentCRUD.get_by_id(db, document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if file exists
+        if not document.storage_path or not Path(document.storage_path).exists():
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        # Return file for download
+        return FileResponse(
+            path=document.storage_path,
+            filename=document.title,
+            media_type=document.mime_type
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
 
 # Delete document endpoint
 @app.delete("/api/documents/{document_id}")
