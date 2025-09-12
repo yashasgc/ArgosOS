@@ -3,54 +3,6 @@ import { useEffect, useCallback } from 'react';
 export const useElectron = () => {
   const isElectron = typeof window !== 'undefined' && window.electronAPI;
 
-  const selectFile = useCallback(async () => {
-    if (!isElectron) return null;
-    return await window.electronAPI.selectFile();
-  }, [isElectron]);
-
-  const selectFolder = useCallback(async () => {
-    if (!isElectron) return null;
-    return await window.electronAPI.selectFolder();
-  }, [isElectron]);
-
-  const showMessageBox = useCallback(async (options: {
-    type?: 'info' | 'warning' | 'error' | 'question';
-    title?: string;
-    message: string;
-    detail?: string;
-    buttons?: string[];
-  }) => {
-    if (!isElectron) {
-      alert(options.message);
-      return { response: 0 };
-    }
-    return await window.electronAPI.showMessageBox(options);
-  }, [isElectron]);
-
-  const getAppVersion = useCallback(async () => {
-    if (!isElectron) return '1.0.0';
-    return await window.electronAPI.getAppVersion();
-  }, [isElectron]);
-
-  const getStoreValue = useCallback(async (key: string) => {
-    if (!isElectron) return null;
-    return await window.electronAPI.getStoreValue(key);
-  }, [isElectron]);
-
-  const setStoreValue = useCallback(async (key: string, value: any) => {
-    if (!isElectron) return;
-    await window.electronAPI.setStoreValue(key, value);
-  }, [isElectron]);
-
-  const getAllStoreValues = useCallback(async () => {
-    if (!isElectron) return {};
-    return await window.electronAPI.getAllStoreValues();
-  }, [isElectron]);
-
-  const clearStore = useCallback(async () => {
-    if (!isElectron) return;
-    await window.electronAPI.clearStore();
-  }, [isElectron]);
 
   const apiCall = useCallback(async (options: {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -121,14 +73,6 @@ export const useElectron = () => {
 
   return {
     isElectron,
-    selectFile,
-    selectFolder,
-    showMessageBox,
-    getAppVersion,
-    getStoreValue,
-    setStoreValue,
-    getAllStoreValues,
-    clearStore,
     apiCall,
   };
 };

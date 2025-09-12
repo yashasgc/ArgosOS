@@ -5,7 +5,6 @@ from cryptography.fernet import Fernet
 import json
 from pathlib import Path
 from sqlalchemy.orm import Session
-from typing import List
 from app.db.engine import get_db
 from app.agents.ingest_agent import IngestAgent
 from app.agents.retrieval_agent import RetrievalAgent
@@ -392,6 +391,34 @@ async def process_documents(
         return {
             "success": False,
             "error": f"Processing failed: {str(e)}"
+        }
+
+# Delete document endpoint
+@app.delete("/api/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    db: Session = Depends(get_db)
+):
+    """Delete a document and its associated file"""
+    try:
+        from app.db.crud import DocumentCRUD
+        
+        success = DocumentCRUD.delete(db, document_id)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Document {document_id} deleted successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Document not found or deletion failed"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to delete document: {str(e)}"
         }
 
 # Health check endpoint

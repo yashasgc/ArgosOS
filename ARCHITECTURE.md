@@ -18,7 +18,7 @@ ArgosOS is an intelligent document management system that combines modern web te
 │  │ • File Upload   │    │ • File Process  │    │ • Document Metadata    │ │
 │  │ • Document View │    │ • Text Extract  │    │ • Content Blobs        │ │
 │  │ • AI Search     │    │ • LLM Analysis  │    │ • Search Index         │ │
-│  │ • Settings      │    │ • API Endpoints │    │ • Audit Logs           │ │
+│  │ • Delete Files  │    │ • API Endpoints │    │ • File Storage         │ │
 │  └─────────────────┘    └─────────────────┘    └─────────────────────────┘ │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -127,14 +127,6 @@ CREATE TABLE document_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id)
 );
 
--- Audit Log Table
-CREATE TABLE audit_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,   -- Auto-increment ID
-    ts INTEGER NOT NULL,                    -- Timestamp (epoch ms)
-    actor TEXT NOT NULL DEFAULT 'system',   -- Who performed action
-    action TEXT NOT NULL,                   -- Action performed
-    details TEXT                            -- Additional details (JSON)
-);
 ```
 
 ### **Database Indexes**

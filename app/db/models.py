@@ -67,31 +67,9 @@ class Tag(Base):
         return f"<Tag(id={self.id}, name='{self.name}')>"
 
 
-class AuditLog(Base):
-    """Audit log table - tracks all system actions and changes"""
-    __tablename__ = "audit_log"
-    
-    # Primary key - auto-increment integer
-    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
-    
-    # Timestamp (epoch milliseconds)
-    ts: Mapped[int] = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000), index=True)
-    
-    # Actor performing the action
-    actor: Mapped[str] = Column(String, nullable=False, default="system")
-    
-    # Action performed
-    action: Mapped[str] = Column(String, nullable=False, index=True)
-    
-    # Additional details (JSON string)
-    details: Mapped[Optional[str]] = Column(Text, nullable=True)
-    
-    def __repr__(self):
-        return f"<AuditLog(id={self.id}, action='{self.action}', actor='{self.actor}')>"
 
 
 # Create additional indexes for performance
 Index('idx_documents_created_at', Document.created_at)
 Index('idx_documents_imported_at', Document.imported_at)
 Index('idx_documents_mime_type', Document.mime_type)
-Index('idx_audit_log_ts_action', AuditLog.ts, AuditLog.action)

@@ -245,10 +245,8 @@ class RetrievalAgent:
                     }
                 }
             
-            # Extract text content
-            from app.files.extractors import TextExtractor
-            extractor = TextExtractor()
-            content = extractor.extract_text(file_path, row.mime_type)
+            # Extract text content directly
+            content = self._extract_text_from_file(file_path, row.mime_type)
             
             return {
                 'id': row.id,
@@ -284,4 +282,34 @@ class RetrievalAgent:
             }
             formatted_docs.append(formatted_doc)
         return formatted_docs
+    
+    def _extract_text_from_file(self, file_path: str, mime_type: str) -> str:
+        """
+        Extract text content from a file based on its MIME type.
+        
+        Args:
+            file_path: Path to the file
+            mime_type: MIME type of the file
+            
+        Returns:
+            Extracted text content
+        """
+        try:
+            from pathlib import Path
+            file_path = Path(file_path)
+            
+            if not file_path.exists():
+                return f"File not found: {file_path}"
+            
+            # Read file based on MIME type
+            if mime_type.startswith('text/'):
+                return file_path.read_text(encoding='utf-8')
+            elif mime_type == 'application/pdf':
+                # For PDF files, we'll return a placeholder since we don't have PDF extraction here
+                return f"PDF content from {file_path.name} (text extraction not available in retrieval agent)"
+            else:
+                return f"Content from {file_path.name} (MIME type: {mime_type})"
+                
+        except Exception as e:
+            return f"Error reading file {file_path}: {str(e)}"
     

@@ -1,7 +1,7 @@
 """
 IngestAgent - Handles file ingestion, text extraction, and AI processing
 """
-import hashlib
+from app.utils.hash import compute_bytes_hash
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -142,7 +142,7 @@ class IngestAgent:
                 return None, errors
             
             # Calculate content hash for deduplication
-            content_hash = hashlib.sha256(file_data).hexdigest()
+            content_hash = compute_bytes_hash(file_data)
             
             # Check if document already exists
             existing_doc = DocumentCRUD.get_by_hash(db, content_hash)

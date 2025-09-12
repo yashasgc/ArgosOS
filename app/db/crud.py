@@ -82,6 +82,47 @@ class DocumentCRUD:
         all_results = list({doc.id: doc for doc in tag_results + text_results}.values())
         
         return all_results[skip:skip + limit]
+    
+    @staticmethod
+    def delete(db: Session, document_id: str) -> bool:
+        """
+        Delete a document and its associated file from disk.
+        
+        Args:
+            db: Database session
+            document_id: ID of the document to delete
+            
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        try:
+            # Get the document
+            document = DocumentCRUD.get_by_id(db, document_id)
+            if not document:
+                return False
+            
+            # Delete the file from disk if it exists
+            if document.storage_path and not document.storage_path.startswith('memory://'):
+                from pathlib import Path
+                file_path = Path(document.storage_path)
+                if file_path.exists():
+                    file_path.unlink()
+                    print(f"Deleted file: {file_path}")
+            
+            # Remove document-tag associations
+            document.tags.clear()
+            
+            # Delete the document from database
+            db.delete(document)
+            db.commit()
+            
+            print(f"Deleted document: {document_id}")
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting document {document_id}: {e}")
+            db.rollback()
+            return False
 
 
 class TagCRUD:

@@ -7,11 +7,23 @@ A modern desktop application for intelligent document management with AI-powered
 - **Multi-format Support**: PDF, DOCX, TXT, MD, and image files (JPG, PNG, GIF, BMP, TIFF, WebP)
 - **OCR Integration**: Tesseract for text extraction from images and scanned documents
 - **AI Analysis**: OpenAI-powered summarization and tagging
+- **Persistent Storage**: Files saved to disk with content-addressed storage
 - **Content Deduplication**: SHA-256 based deduplication
 - **Native Desktop App**: Cross-platform Electron application
-- **Smart Search**: Natural language document search
+- **Smart Search**: Natural language document search with real file paths
+- **Complete CRUD**: Upload, view, search, and delete documents
 - **Security**: Encrypted API key storage, input validation, and SQL injection protection
 - **Distribution**: Ready-to-distribute DMG, EXE, and AppImage packages
+
+## Recent Updates
+
+### v1.1.0 - Complete File Management
+- ✅ **Persistent File Storage**: Files now saved to `data/blobs/` directory
+- ✅ **Complete Delete**: Delete removes both file and database record
+- ✅ **Real File Paths**: Database stores actual file locations
+- ✅ **Code Cleanup**: Removed dead code and unused functions
+- ✅ **Improved Search**: Search returns real file paths for postprocessor integration
+- ✅ **Better Error Handling**: Enhanced validation and error messages
 
 ## Quick Start
 

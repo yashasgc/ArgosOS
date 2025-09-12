@@ -37,8 +37,26 @@ function App() {
   const [loading, setLoading] = useState(false);
 
 
-  const handleDeleteDocument = (documentId: string) => {
-    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  const handleDeleteDocument = async (documentId: string) => {
+    try {
+      const result = await apiCall({
+        method: 'DELETE',
+        endpoint: `/api/documents/${documentId}`
+      });
+
+      if (result.success) {
+        // Remove from local state
+        setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+        setSearchResults(prev => prev.filter(doc => doc.id !== documentId));
+        console.log('Document deleted successfully');
+      } else {
+        console.error('Failed to delete document:', result.error);
+        // You could add a toast notification here
+      }
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      // You could add a toast notification here
+    }
   };
 
   const handleSearch = async (query: string) => {
