@@ -98,6 +98,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       if (!response.success) {
         const errorMsg = response.error || 'Upload failed';
         console.log('Throwing error with message:', errorMsg);
+        console.log('Response object:', JSON.stringify(response, null, 2));
         throw new Error(errorMsg);
       }
 

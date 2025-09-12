@@ -60,8 +60,11 @@ export const useElectron = () => {
     console.log('apiCall called with:', options);
     console.log('isElectron:', isElectron);
     console.log('window.electronAPI:', window.electronAPI);
+    console.log('typeof window:', typeof window);
+    console.log('window.electronAPI type:', typeof window.electronAPI);
     
     if (!isElectron) {
+      console.log('Using web fallback (fetch)');
       // Fallback to regular fetch for web
       try {
         const response = await fetch(`http://localhost:8000${options.endpoint}`, {
