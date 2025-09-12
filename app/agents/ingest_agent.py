@@ -78,6 +78,8 @@ class IngestAgent:
             llm_provider: LLM provider for generating tags and summaries
         """
         self.llm_provider = llm_provider
+        self.blobs_dir = Path("./data/blobs")
+        self.blobs_dir.mkdir(parents=True, exist_ok=True)
         self._check_dependencies()
     
     def _check_dependencies(self):
@@ -174,6 +176,15 @@ class IngestAgent:
                 print("LLM not available, skipping summary generation")
                 errors.append("OpenAI API key not configured - summary generation skipped")
             
+            # Save file to disk
+            file_extension = Path(filename).suffix or '.bin'
+            blob_filename = f"{content_hash}{file_extension}"
+            blob_path = self.blobs_dir / blob_filename
+            
+            # Write file data to disk
+            blob_path.write_bytes(file_data)
+            print(f"File saved to: {blob_path}")
+            
             # Create document record
             current_time = int(time.time() * 1000)
             document_data = DocumentCreate(
@@ -181,7 +192,7 @@ class IngestAgent:
                 mime_type=mime_type,
                 size_bytes=file_size,
                 content_hash=content_hash,
-                storage_path=f"memory://{filename}",  # Store in memory, not file system
+                storage_path=str(blob_path),  # Real file path
                 summary=summary if summary else None,
                 created_at=current_time,
                 imported_at=current_time

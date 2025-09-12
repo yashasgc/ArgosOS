@@ -310,6 +310,40 @@ async def search_documents(
             "error": f"Search failed: {str(e)}"
         }
 
+# Get all documents
+@app.get("/api/documents")
+async def get_documents(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get all documents with pagination"""
+    try:
+        from app.db.crud import DocumentCRUD
+        documents = DocumentCRUD.get_all(db, skip=skip, limit=limit)
+        
+        return {
+            "success": True,
+            "documents": [
+                {
+                    "id": doc.id,
+                    "title": doc.title,
+                    "summary": doc.summary,
+                    "mime_type": doc.mime_type,
+                    "size_bytes": doc.size_bytes,
+                    "created_at": doc.created_at,
+                    "tags": [{"name": tag.name} for tag in doc.tags]
+                }
+                for doc in documents
+            ],
+            "total": len(documents)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get documents: {str(e)}"
+        }
+
 # Get document content
 @app.get("/api/documents/{document_id}")
 async def get_document(

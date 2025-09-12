@@ -28,6 +28,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabId>('upload');
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Document[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
@@ -38,6 +40,66 @@ function App() {
   const handleDeleteDocument = (documentId: string) => {
     setDocuments(prev => prev.filter(doc => doc.id !== documentId));
   };
+
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const result = await apiCall({
+        method: 'GET',
+        endpoint: `/api/search?query=${encodeURIComponent(query)}&limit=20`
+      });
+
+      if (result.success) {
+        setSearchResults(result.data.results.documents || []);
+      } else {
+        console.error('Search failed:', result.error);
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Load documents on startup
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const result = await apiCall({
+          method: 'GET',
+          endpoint: '/api/documents'
+        });
+
+        if (result.success) {
+          setDocuments(result.data.documents || []);
+        }
+      } catch (error) {
+        console.error('Failed to load documents:', error);
+      }
+    };
+
+    loadDocuments();
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        handleSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const checkApiKeyStatus = async () => {
     try {
@@ -103,10 +165,7 @@ function App() {
     }
   };
 
-  const filteredDocuments = documents.filter(doc =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.summary?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Search results are now handled by the backend API
 
   const tabs: Tab[] = [
     { id: 'upload', label: 'Upload Documents', icon: Upload, count: null },
@@ -192,14 +251,19 @@ function App() {
       <h2 className="text-3xl font-bold text-gray-900 mb-6">AI Search</h2>
       <div className="max-w-2xl mb-8">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
           <input
             type="text"
             placeholder="Search through your documents..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input pl-10"
+            className="w-full px-10 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
           />
+          {searchLoading && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+            </div>
+          )}
         </div>
       </div>
       
@@ -208,11 +272,16 @@ function App() {
           <h3 className="text-lg font-semibold text-gray-900">
             Search Results for "{searchQuery}"
           </h3>
-          {filteredDocuments.length === 0 ? (
+          {searchLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <span className="ml-2 text-gray-600">Searching...</span>
+            </div>
+          ) : searchResults.length === 0 ? (
             <p className="text-gray-500">No documents found matching your search.</p>
           ) : (
             <div className="space-y-3">
-              {filteredDocuments.map(doc => renderDocumentCard(doc, false))}
+              {searchResults.map(doc => renderDocumentCard(doc, false))}
             </div>
           )}
         </div>
