@@ -1,5 +1,5 @@
 from typing import List
-import openai
+from openai import OpenAI
 import json
 import re
 from .provider import LLMProvider
@@ -17,8 +17,9 @@ class OpenAIProvider(LLMProvider):
             self.model = 'gpt-3.5-turbo'
         
         # Initialize OpenAI client
+        self.client = None
         if self.api_key:
-            openai.api_key = self.api_key
+            self.client = OpenAI(api_key=self.api_key)
     
     def is_available(self) -> bool:
         """Check if OpenAI provider is available"""
@@ -26,7 +27,7 @@ class OpenAIProvider(LLMProvider):
     
     def summarize(self, text: str) -> str:
         """Generate a summary using OpenAI"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return ""
         
         try:
@@ -35,7 +36,7 @@ class OpenAIProvider(LLMProvider):
             if len(text) > max_chars:
                 text = text[:max_chars] + "..."
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that creates concise summaries of documents. Provide a clear, informative summary in 2-3 sentences."},
@@ -58,7 +59,7 @@ class OpenAIProvider(LLMProvider):
     
     def generate_tags(self, text: str) -> List[str]:
         """Generate tags using OpenAI"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return []
         
         try:
@@ -67,7 +68,7 @@ class OpenAIProvider(LLMProvider):
             if len(text) > max_chars:
                 text = text[:max_chars] + "..."
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that generates relevant tags for documents. Return only a JSON array of 3-7 relevant tags (lowercase, no spaces, use hyphens for multi-word tags). Focus on the main topics, document type, and key concepts."},
@@ -117,7 +118,7 @@ class OpenAIProvider(LLMProvider):
     
     def generate_sql_query(self, query: str, schema_info: str = "") -> str:
         """Generate SQL query from natural language using OpenAI"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return ""
         
         try:
@@ -138,7 +139,7 @@ class OpenAIProvider(LLMProvider):
             
             schema = schema_info if schema_info else default_schema
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": f"You are a SQL expert. Generate SQL queries based on natural language requests. Use the following database schema:\n\n{schema}\n\nReturn only the SQL query, no explanations. Use proper SQL syntax and parameterized queries where appropriate."},

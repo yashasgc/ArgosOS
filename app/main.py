@@ -220,7 +220,7 @@ async def upload_file(
         
         # Process with IngestAgent
         ingest_agent = get_ingest_agent()
-        document, errors = ingest_agent.ingest_file(file_path, db)
+        document, errors = ingest_agent.ingest_file(content, file.filename, file.content_type, db)
         
         # Clean up temp file
         file_path.unlink()
