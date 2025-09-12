@@ -75,6 +75,9 @@ export const useElectron = () => {
         );
         return { success: response.ok, data, error: errorMessage };
       } catch (error) {
+        console.error('Fetch error:', error);
+        console.error('Error type:', typeof error);
+        console.error('Error message:', error instanceof Error ? error.message : 'Not an Error object');
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
       }
     }

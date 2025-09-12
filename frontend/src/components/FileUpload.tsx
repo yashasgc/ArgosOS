@@ -81,11 +81,16 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
       const formData = new FormData();
       formData.append('file', file, file.name);
       
+      console.log('Sending request with FormData:', formData);
+      console.log('FormData entries:', Array.from(formData.entries()));
+      
       const response = await apiCall({
         method: 'POST',
         endpoint: '/api/files/upload',
         data: formData
       });
+      
+      console.log('API response:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Upload failed');
