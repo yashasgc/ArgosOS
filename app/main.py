@@ -253,9 +253,7 @@ async def upload_file(
         if not is_valid:
             raise HTTPException(status_code=413, detail=error)
         
-        # Additional validation for PDF files
-        if file.content_type == 'application/pdf' and len(content) < 100:
-            raise HTTPException(status_code=400, detail="PDF file appears to be corrupted or too small")
+        # Additional validation for PDF files - removed overly restrictive size check
         
         # Sanitize filename
         safe_filename = FileValidator.sanitize_filename(file.filename)
