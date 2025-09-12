@@ -1,19 +1,28 @@
 """
-PostProcessorAgent - Simple document processing with OCR and LLM
+PostProcessorAgent - Advanced document processing with OCR and multi-step LLM processing
 """
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 from sqlalchemy.orm import Session
+import json
 
+from app.db.models import Document
+from app.db.crud import DocumentCRUD
 from app.llm.provider import LLMProvider
 
 
 class PostProcessorAgent:
     """
     Agent responsible for processing documents retrieved by RetrievalAgent.
-    1. Use OCR to extract text
-    2. Use LLM to read query + extracted text and generate response
-    3. If flag is true, run post-processing method with LLM
+    
+    Workflow:
+    1. Takes all the document IDs and finds the docs
+    2. Uses OCR on the docs to extract all the content
+    3. Uses the query to find relevant info from the docs for extracting relevant content only
+    4. Calls another method if there is additional processing requiring
+    5. The LLM decides if additional processing is required and the instructions to process
+    6. The new method would make another LLM call with relevant info, query and processing instructions
+    7. Finally returns the result
     """
     
     def __init__(self, llm_provider: LLMProvider):
@@ -21,196 +30,271 @@ class PostProcessorAgent:
     
     def process_documents(
         self, 
-        retrieval_results: Dict[str, Any], 
-        db: Session,
-        extraction_query: str
+        query: str,
+        document_ids: List[str],
+        db: Session
     ) -> Dict[str, Any]:
-        """Process documents from RetrievalAgent results."""
+        """
+        Process documents using the new workflow.
+        
+        Args:
+            query: Search query
+            document_ids: List of document IDs to process
+            db: Database session
+            
+        Returns:
+            Dictionary containing processed results
+        """
         # Input validation
-        if not extraction_query or not extraction_query.strip():
+        if not query or not query.strip():
             return {
-                'query': extraction_query,
+                'query': query,
                 'processed_documents': [],
                 'total_processed': 0,
-                'errors': ['Extraction query cannot be empty']
+                'errors': ['Query cannot be empty']
             }
         
-        if not retrieval_results or not isinstance(retrieval_results, dict):
+        if not document_ids:
             return {
-                'query': extraction_query,
+                'query': query,
                 'processed_documents': [],
                 'total_processed': 0,
-                'errors': ['Invalid retrieval results provided']
+                'errors': ['No document IDs provided']
             }
         
         results = {
-            'query': extraction_query.strip(),
+            'query': query.strip(),
             'processed_documents': [],
             'total_processed': 0,
             'errors': []
         }
         
         try:
-            documents = retrieval_results.get('documents', [])
+            # Step 1: Get documents by IDs
+            documents = self._get_documents_by_ids(db, document_ids)
             
-            for doc in documents:
-                doc_result = self._process_single_document(doc, db, extraction_query)
-                results['processed_documents'].append(doc_result)
+            if not documents:
+                results['errors'].append('No documents found for the provided IDs')
+                return results
             
-            results['total_processed'] = len(results['processed_documents'])
+            # Step 2: Extract content using OCR for all documents
+            extracted_contents = self._extract_document_contents(documents)
+            
+            # Step 3: Use LLM to find relevant content based on query
+            relevant_content = self._find_relevant_content(query, extracted_contents)
+            
+            # Step 4: Check if additional processing is needed
+            processing_decision = self._decide_additional_processing(query, relevant_content)
+            
+            # Step 5: Perform additional processing if needed
+            if processing_decision['needs_processing']:
+                final_result = self._perform_additional_processing(
+                    query, 
+                    relevant_content, 
+                    processing_decision['instructions']
+                )
+            else:
+                final_result = relevant_content
+            
+            # Format results
+            results['processed_documents'] = [{
+                'document_id': doc.id,
+                'title': doc.title,
+                'relevant_content': final_result,
+                'processing_applied': processing_decision['needs_processing']
+            } for doc in documents]
+            
+            results['total_processed'] = len(documents)
             
         except Exception as e:
             results['errors'].append(f"Processing failed: {str(e)}")
         
         return results
     
-    def _process_single_document(
-        self, 
-        document: Dict[str, Any], 
-        db: Session, 
-        extraction_query: str
-    ) -> Dict[str, Any]:
-        """Process a single document: OCR -> LLM -> Post-processing (if needed)."""
-        doc_result = {
-            'document_id': document['id'],
-            'document_title': document['title'],
-            'extracted_text': '',
-            'llm_response': {},
-            'final_response': {},
-            'errors': []
-        }
-        
+    def _get_documents_by_ids(self, db: Session, document_ids: List[str]) -> List[Document]:
+        """Get documents by their IDs from the database."""
         try:
-            # Step 1: Use OCR to extract text
-            extracted_text = self._extract_text_with_ocr(document, db)
-            doc_result['extracted_text'] = extracted_text
-            
-            if not extracted_text:
-                doc_result['errors'].append("No text extracted from document")
-                return doc_result
-            
-            # Step 2: Use LLM to read query + extracted text and generate response
-            llm_response = self._process_with_llm(extraction_query, extracted_text)
-            doc_result['llm_response'] = llm_response
-            
-            # Step 3: If flag is true, run post-processing method
-            if llm_response.get('needs_post_processing', False):
-                final_response = self._post_processing(extraction_query, llm_response, extracted_text)
-                doc_result['final_response'] = final_response
-            else:
-                doc_result['final_response'] = llm_response
-            
+            documents = db.query(Document).filter(Document.id.in_(document_ids)).all()
+            return documents
         except Exception as e:
-            doc_result['errors'].append(f"Document processing failed: {str(e)}")
-        
-        return doc_result
+            print(f"Error getting documents by IDs: {e}")
+            return []
     
-    def _extract_text_with_ocr(self, document: Dict[str, Any], db: Session) -> str:
-        """Use OCR to extract text from document."""
+    def _extract_document_contents(self, documents: List[Document]) -> Dict[str, str]:
+        """Extract content from documents using OCR."""
+        extracted_contents = {}
+        
+        for doc in documents:
+            try:
+                # Read the file content
+                if doc.storage_path and Path(doc.storage_path).exists():
+                    with open(doc.storage_path, 'rb') as f:
+                        file_data = f.read()
+                    
+                    # Extract text based on MIME type
+                    content = self._extract_text_from_file(file_data, doc.mime_type)
+                    extracted_contents[doc.id] = content
+                else:
+                    extracted_contents[doc.id] = ""
+                    print(f"File not found for document {doc.id}: {doc.storage_path}")
+                    
+            except Exception as e:
+                print(f"Error extracting content from document {doc.id}: {e}")
+                extracted_contents[doc.id] = ""
+        
+        return extracted_contents
+    
+    def _extract_text_from_file(self, file_data: bytes, mime_type: str) -> str:
+        """Extract text from file data based on MIME type."""
         try:
-            from app.agents.retrieval_agent import RetrievalAgent
-            retrieval_agent = RetrievalAgent(self.llm_provider)
-            
-            content_result = retrieval_agent.get_document_content(document['id'], db)
-            
-            if not content_result or 'error' in content_result:
+            if mime_type.startswith('text/'):
+                return file_data.decode('utf-8', errors='ignore')
+            elif mime_type == 'application/pdf':
+                import fitz  # PyMuPDF
+                doc = fitz.open(stream=file_data, filetype="pdf")
+                text = ""
+                for page in doc:
+                    text += page.get_text()
+                doc.close()
+                return text
+            elif mime_type in ['image/jpeg', 'image/png', 'image/tiff']:
+                import pytesseract
+                from PIL import Image
+                import io
+                image = Image.open(io.BytesIO(file_data))
+                return pytesseract.image_to_string(image)
+            else:
                 return ""
-            
-            file_path = Path(content_result.get('file_path', ''))
-            mime_type = content_result.get('mime_type', '')
-            
-            if not file_path.exists():
-                return ""
-            
-            # Read file content and extract text using IngestAgent
-            from app.agents.ingest_agent import IngestAgent
-            ingest_agent = IngestAgent(self.llm_provider)
-            
-            with open(file_path, 'rb') as f:
-                file_data = f.read()
-            
-            extracted_text = ingest_agent._extract_text(file_data, mime_type, file_path.name)
-            return extracted_text or ""
-            
         except Exception as e:
-            print(f"OCR extraction failed: {e}")
+            print(f"Error extracting text from file: {e}")
             return ""
     
-    def _process_with_llm(self, extraction_query: str, extracted_text: str) -> Dict[str, Any]:
-        """Use LLM to read query + extracted text and generate response."""
+    def _find_relevant_content(self, query: str, extracted_contents: Dict[str, str]) -> str:
+        """Use LLM to find relevant content based on query."""
         if not self.llm_provider.is_available():
-            return {"error": "LLM not available", "needs_post_processing": False}
+            # Fallback: simple text matching
+            relevant_parts = []
+            for doc_id, content in extracted_contents.items():
+                if query.lower() in content.lower():
+                    relevant_parts.append(f"Document {doc_id}: {content[:500]}...")
+            return "\n\n".join(relevant_parts)
         
         try:
-            # Let LLM decide if post-processing is needed
+            # Combine all content
+            all_content = "\n\n".join([
+                f"Document {doc_id}:\n{content}" 
+                for doc_id, content in extracted_contents.items()
+            ])
+            
             prompt = f"""
-            Query: {extraction_query}
+Given the following search query and document contents, extract only the most relevant information that directly answers or relates to the query.
+
+Search Query: "{query}"
+
+Document Contents:
+{all_content}
+
+Please extract and return only the relevant information that directly relates to the query. Be concise and focused.
+
+Relevant Information:"""
+
+            response = self.llm_provider.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
+                temperature=0.1
+            )
             
-            Extracted Text: {extracted_text[:2000]}
-            
-            Analyze the query and extracted text. Return a JSON response with:
-            - "extracted_data": The relevant data you found
-            - "needs_post_processing": true/false - whether additional processing is needed
-            - "post_processing_instructions": Instructions for what post-processing to do (if needed)
-            
-            Example:
-            {{
-                "extracted_data": {{"amounts": ["$10.50", "$5.25"], "items": ["apple", "banana"]}},
-                "needs_post_processing": true,
-                "post_processing_instructions": "Calculate total and format as receipt"
-            }}
-            """
-            
-            # Use LLM to make the decision
-            response = self.llm_provider.generate_tags(prompt)
-            
-            # For now, return a simple response (in full implementation, LLM would return JSON)
-            return {
-                "extracted_data": {"text": extracted_text[:500]},
-                "needs_post_processing": False,
-                "post_processing_instructions": ""
-            }
+            return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"LLM processing failed: {e}")
-            return {"error": str(e), "needs_post_processing": False}
+            print(f"Error finding relevant content: {e}")
+            return "Error processing content with LLM"
     
-    def _post_processing(self, extraction_query: str, llm_response: Dict[str, Any], extracted_text: str) -> Dict[str, Any]:
-        """Post-processing method using LLM with instructions."""
+    def _decide_additional_processing(self, query: str, relevant_content: str) -> Dict[str, Any]:
+        """Decide if additional processing is needed and what instructions to use."""
         if not self.llm_provider.is_available():
-            return {"error": "LLM not available for post-processing"}
+            return {
+                'needs_processing': False,
+                'instructions': None
+            }
         
         try:
-            # Get post-processing instructions from LLM response
-            instructions = llm_response.get('post_processing_instructions', '')
-            extracted_data = llm_response.get('extracted_data', {})
-            
-            # Use LLM to do the post-processing based on instructions
             prompt = f"""
-            Original Query: {extraction_query}
+Based on the search query and relevant content, determine if additional processing is needed.
+
+Search Query: "{query}"
+
+Relevant Content: "{relevant_content}"
+
+Consider if the content needs:
+- Summarization
+- Analysis
+- Comparison
+- Formatting
+- Translation
+- Or any other specific processing
+
+Respond with JSON format:
+{{
+    "needs_processing": true/false,
+    "instructions": "specific instructions for processing if needed"
+}}
+
+Decision:"""
+
+            response = self.llm_provider.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1
+            )
             
-            Extracted Data: {extracted_data}
-            
-            Post-Processing Instructions: {instructions}
-            
-            Original Text: {extracted_text[:1000]}
-            
-            Perform the post-processing as instructed and return a JSON response with:
-            - "post_processed_result": The final result
-            - "processing_steps": Steps taken
-            - "confidence": Confidence level (0-1)
-            """
-            
-            # Use LLM for post-processing
-            response = self.llm_provider.generate_tags(prompt)
-            
-            # For now, return a simple response (in full implementation, LLM would return JSON)
-            return {
-                "post_processed_result": f"Post-processed based on: {instructions}",
-                "processing_steps": ["LLM post-processing"],
-                "confidence": 0.8
-            }
+            # Parse JSON response
+            import json
+            decision = json.loads(response.choices[0].message.content.strip())
+            return decision
             
         except Exception as e:
-            return {"error": f"Post-processing failed: {str(e)}", "confidence": 0.0}
+            print(f"Error deciding additional processing: {e}")
+            return {
+                'needs_processing': False,
+                'instructions': None
+            }
     
+    def _perform_additional_processing(
+        self, 
+        query: str, 
+        relevant_content: str, 
+        instructions: str
+    ) -> str:
+        """Perform additional processing based on LLM instructions."""
+        if not self.llm_provider.is_available():
+            return relevant_content
+        
+        try:
+            prompt = f"""
+Process the following content according to the specific instructions.
+
+Search Query: "{query}"
+
+Content to Process: "{relevant_content}"
+
+Processing Instructions: "{instructions}"
+
+Please process the content according to the instructions and return the final result.
+
+Processed Result:"""
+
+            response = self.llm_provider.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.2
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Error performing additional processing: {e}")
+            return relevant_content

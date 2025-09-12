@@ -63,7 +63,7 @@ class RetrievalAgent:
         results = {
             'query': query.strip(),
             'documents': [],
-            'file_paths': [],
+            'document_ids': [],
             'total_found': 0,
             'errors': []
         }
@@ -78,24 +78,15 @@ class RetrievalAgent:
             # Step 3: Search for documents with those generated tags
             documents = self._search_documents_with_generated_tags(db, relevant_tags, limit)
             
-            # Step 4: Return files and prepare paths for postprocessor
-            file_paths = []
-            for doc in documents:
-                # Get file path from document metadata
-                file_path = self._get_document_file_path(doc)
-                if file_path:
-                    file_paths.append(file_path)
+            # Step 4: Return document IDs for postprocessor
+            document_ids = [doc.id for doc in documents]
             
             # Format results
             formatted_docs = self._format_documents(documents)
             
             results['documents'] = formatted_docs
-            results['file_paths'] = file_paths
+            results['document_ids'] = document_ids
             results['total_found'] = len(formatted_docs)
-            
-            # Pass file paths to postprocessor agent
-            if file_paths and self.llm_provider.is_available():
-                self._pass_to_postprocessor(query, file_paths)
             
         except Exception as e:
             results['errors'].append(f"Search failed: {str(e)}")

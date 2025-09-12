@@ -298,6 +298,16 @@ async def search_documents(
         retrieval_agent = get_retrieval_agent()
         results = retrieval_agent.search_documents(query, db, limit)
         
+        # If we have document IDs, process them with postprocessor agent
+        if results.get('document_ids') and results['document_ids']:
+            postprocessor_agent = get_postprocessor_agent()
+            processed_results = postprocessor_agent.process_documents(
+                query=query,
+                document_ids=results['document_ids'],
+                db=db
+            )
+            results['processed_content'] = processed_results
+        
         return {
             "success": True,
             "query": query,
