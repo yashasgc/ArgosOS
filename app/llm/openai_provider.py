@@ -39,7 +39,7 @@ class OpenAIProvider(LLMProvider):
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that creates concise summaries of documents. Provide a clear, informative summary in 2-3 sentences."},
+                    {"role": "system", "content": "You are a helpful assistant that creates concise summaries of documents. Provide a clear, informative summary in 2-3 sentences. Return only the summary text, no additional formatting or explanations."},
                     {"role": "user", "content": f"Please summarize the following document content:\n\n{text}"}
                 ],
                 max_tokens=150,
@@ -71,31 +71,40 @@ class OpenAIProvider(LLMProvider):
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that generates relevant tags for documents. Return only a JSON array of 3-7 relevant tags (lowercase, no spaces, use hyphens for multi-word tags). Focus on the main topics, document type, and key concepts."},
+                    {"role": "system", "content": "You are a helpful assistant that generates relevant tags for documents. Return ONLY a valid JSON array of 3-7 relevant tags (lowercase, no spaces, use hyphens for multi-word tags). Focus on the main topics, document type, and key concepts. Do not include any other text or explanation."},
                     {"role": "user", "content": f"Generate relevant tags for this document content:\n\n{text}"}
                 ],
                 max_tokens=100,
                 temperature=0.3
             )
             
-            # Parse JSON response
+            # Parse JSON response with robust error handling
             content = response.choices[0].message.content.strip()
             
-            # Try to extract JSON array from response
             try:
-                # Look for JSON array in the response
-                json_match = re.search(r'\[.*?\]', content, re.DOTALL)
-                if json_match:
-                    tags = json.loads(json_match.group())
-                    if isinstance(tags, list):
-                        return [str(tag).lower().strip() for tag in tags if tag][:7]
-            except (json.JSONDecodeError, AttributeError):
-                pass
-            
-            # Fallback: split by common delimiters
-            tags = re.split(r'[,;\n]', content)
-            tags = [tag.strip().lower() for tag in tags if tag.strip()]
-            return tags[:7]
+                # First try to parse the entire response as JSON
+                tags = json.loads(content)
+                if isinstance(tags, list):
+                    return [str(tag).lower().strip() for tag in tags if tag][:7]
+                else:
+                    raise ValueError("Response is not a list")
+                    
+            except (json.JSONDecodeError, ValueError):
+                try:
+                    # Try to extract JSON array from response using regex
+                    json_match = re.search(r'\[.*?\]', content, re.DOTALL)
+                    if json_match:
+                        tags = json.loads(json_match.group())
+                        if isinstance(tags, list):
+                            return [str(tag).lower().strip() for tag in tags if tag][:7]
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+                
+                # Fallback: split by common delimiters and clean up
+                print(f"JSON parsing failed, using fallback for content: {content}")
+                tags = re.split(r'[,;\n]', content)
+                tags = [tag.strip().lower().strip('"\'[]') for tag in tags if tag.strip()]
+                return [tag for tag in tags if tag][:7]
             
         except Exception as e:
             print(f"Error generating tags with OpenAI: {e}")

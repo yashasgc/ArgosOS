@@ -73,10 +73,16 @@ class RetrievalAgent:
             available_tags = self._get_available_tags(db)
             
             # Step 2: Pass the tags table and the query to LLM to generate the tags
-            relevant_tags = self._generate_relevant_tags(query, available_tags, db)
+            relevant_tags = self._generate_relevant_tags(query, available_tags, db, limit)
             
             # Step 3: Search for documents with those generated tags
             documents = self._search_documents_with_generated_tags(db, relevant_tags, limit)
+            
+            # If no documents found with tags, try direct text search
+            if not documents:
+                print("No documents found with generated tags, trying direct text search")
+                from app.db.crud import DocumentCRUD
+                documents = DocumentCRUD.search(db, query, 0, limit)
             
             # Step 4: Return document IDs for postprocessor
             document_ids = [doc.id for doc in documents]
@@ -110,13 +116,15 @@ class RetrievalAgent:
             print(f"Error getting available tags: {e}")
             return []
     
-    def _generate_relevant_tags(self, query: str, available_tags: List[str], db: Session) -> List[str]:
+    def _generate_relevant_tags(self, query: str, available_tags: List[str], db: Session, limit: int = 10) -> List[str]:
         """
         Use LLM to generate relevant tags from the query based on available tags.
         
         Args:
             query: Natural language search query
             available_tags: List of available tags from the database
+            db: Database session
+            limit: Maximum number of documents to search
             
         Returns:
             List of relevant tag names
@@ -139,7 +147,19 @@ class RetrievalAgent:
                                 relevant_tags.add(tag)
                         except:
                             pass
-                return list(relevant_tags)
+                
+                # If we found documents, return their tags
+                if relevant_tags:
+                    return list(relevant_tags)
+                
+                # If no documents found, try partial matching on available tags
+                query_lower = query.lower()
+                matching_tags = []
+                for tag in available_tags:
+                    if query_lower in tag.lower() or tag.lower() in query_lower:
+                        matching_tags.append(tag)
+                
+                return matching_tags
             except Exception as e:
                 print(f"Error in fallback search: {e}")
                 return []
@@ -153,8 +173,9 @@ Search Query: "{query}"
 
 Available Tags: {', '.join(available_tags)}
 
-Please return only the tag names that are most relevant to the search query, separated by commas.
-If no tags are relevant, return an empty response.
+Return your response as a JSON array of tag names. If no tags are relevant, return an empty array.
+
+Format: ["tag1", "tag2", "tag3"]
 
 Relevant tags:"""
 
@@ -165,19 +186,30 @@ Relevant tags:"""
                 temperature=0.1
             )
             
-            # Parse the response
+            # Parse the JSON response
             relevant_tags_text = response.choices[0].message.content.strip()
             if not relevant_tags_text:
                 return []
             
-            # Split by comma and clean up
-            relevant_tags = [tag.strip() for tag in relevant_tags_text.split(',')]
-            
-            # Filter to only include tags that actually exist in our database
-            valid_tags = [tag for tag in relevant_tags if tag in available_tags]
-            
-            print(f"Generated relevant tags: {valid_tags}")
-            return valid_tags
+            try:
+                import json
+                # Try to parse as JSON array
+                relevant_tags = json.loads(relevant_tags_text)
+                if not isinstance(relevant_tags, list):
+                    raise ValueError("Response is not a list")
+                
+                # Filter to only include tags that actually exist in our database
+                valid_tags = [tag for tag in relevant_tags if tag in available_tags]
+                
+                print(f"Generated relevant tags: {valid_tags}")
+                return valid_tags
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"Failed to parse JSON response: {e}, falling back to comma parsing")
+                # Fallback: split by comma and clean up
+                relevant_tags = [tag.strip().strip('"\'') for tag in relevant_tags_text.split(',')]
+                valid_tags = [tag for tag in relevant_tags if tag in available_tags]
+                return valid_tags
             
         except Exception as e:
             print(f"Error generating relevant tags: {e}")

@@ -235,10 +235,17 @@ Consider if the content needs:
 - Translation
 - Or any other specific processing
 
-Respond with JSON format:
+Respond with valid JSON format only:
 {{
-    "needs_processing": true/false,
+    "needs_processing": true,
     "instructions": "specific instructions for processing if needed"
+}}
+
+or
+
+{{
+    "needs_processing": false,
+    "instructions": null
 }}
 
 Decision:"""
@@ -250,10 +257,39 @@ Decision:"""
                 temperature=0.1
             )
             
-            # Parse JSON response
+            # Parse JSON response with better error handling
             import json
-            decision = json.loads(response.choices[0].message.content.strip())
-            return decision
+            content = response.choices[0].message.content.strip()
+            
+            try:
+                # Try to parse as JSON
+                decision = json.loads(content)
+                
+                # Validate required fields
+                if not isinstance(decision, dict):
+                    raise ValueError("Response is not a JSON object")
+                
+                if "needs_processing" not in decision:
+                    raise ValueError("Missing 'needs_processing' field")
+                
+                if "instructions" not in decision:
+                    raise ValueError("Missing 'instructions' field")
+                
+                # Ensure needs_processing is boolean
+                if not isinstance(decision["needs_processing"], bool):
+                    decision["needs_processing"] = bool(decision["needs_processing"])
+                
+                return decision
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"Failed to parse JSON response: {e}")
+                print(f"Response content: {content}")
+                
+                # Fallback: return safe default
+                return {
+                    'needs_processing': False,
+                    'instructions': None
+                }
             
         except Exception as e:
             print(f"Error deciding additional processing: {e}")

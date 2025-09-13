@@ -11,7 +11,7 @@ class DocumentCRUD:
     @staticmethod
     def create(db: Session, document: DocumentCreate) -> Document:
         # Convert tags list to JSON string for storage
-        doc_data = document.dict()
+        doc_data = document.model_dump()
         if 'tags' in doc_data and isinstance(doc_data['tags'], list):
             doc_data['tags'] = json.dumps(doc_data['tags'])
         
@@ -116,7 +116,7 @@ class DocumentCRUD:
 class TagCRUD:
     @staticmethod
     def create(db: Session, tag: TagCreate) -> Tag:
-        db_tag = Tag(**tag.dict())
+        db_tag = Tag(**tag.model_dump())
         db.add(db_tag)
         db.commit()
         db.refresh(db_tag)
