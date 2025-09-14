@@ -4,6 +4,10 @@ Validation utilities for ArgosOS
 import re
 from typing import List, Optional, Tuple
 from pathlib import Path
+from app.constants import (
+    MAX_FILE_SIZE, MAX_FILENAME_LENGTH, MAX_TEXT_LENGTH,
+    MAX_QUERY_LENGTH, MAX_API_KEY_LENGTH
+)
 
 class ValidationError(Exception):
     """Custom validation error"""
@@ -27,17 +31,13 @@ class FileValidator:
         'text/plain', 'text/markdown', 'text/csv'
     }
     
-    # Maximum file size (100MB)
-    MAX_FILE_SIZE = 100 * 1024 * 1024
-    
-    # Maximum filename length
-    MAX_FILENAME_LENGTH = 255
+    # Use constants from app.constants
     
     @classmethod
     def validate_file_size(cls, content: bytes) -> Tuple[bool, Optional[str]]:
         """Validate file size"""
-        if len(content) > cls.MAX_FILE_SIZE:
-            return False, f"File too large: {len(content)} bytes (max: {cls.MAX_FILE_SIZE} bytes)"
+        if len(content) > MAX_FILE_SIZE:
+            return False, f"File too large: {len(content)} bytes (max: {MAX_FILE_SIZE} bytes)"
         return True, None
     
     @classmethod
@@ -46,8 +46,8 @@ class FileValidator:
         if not filename:
             return False, "No filename provided"
         
-        if len(filename) > cls.MAX_FILENAME_LENGTH:
-            return False, f"Filename too long: {len(filename)} characters (max: {cls.MAX_FILENAME_LENGTH})"
+        if len(filename) > MAX_FILENAME_LENGTH:
+            return False, f"Filename too long: {len(filename)} characters (max: {MAX_FILENAME_LENGTH})"
         
         # Check for path traversal attempts
         if '..' in filename or '/' in filename or '\\' in filename:
@@ -95,7 +95,7 @@ class ContentValidator:
     """Content validation utilities"""
     
     @staticmethod
-    def validate_text_content(text: str, max_length: int = 1000000) -> Tuple[bool, Optional[str]]:
+    def validate_text_content(text: str, max_length: int = MAX_TEXT_LENGTH) -> Tuple[bool, Optional[str]]:
         """Validate text content"""
         if not text or not text.strip():
             return False, "Empty text content"
@@ -111,7 +111,7 @@ class ContentValidator:
         if not query or not query.strip():
             return False, "Empty search query"
         
-        if len(query) > 1000:
+        if len(query) > MAX_QUERY_LENGTH:
             return False, "Search query too long"
         
         # Check for SQL injection attempts
@@ -138,7 +138,7 @@ class APIKeyValidator:
         if len(api_key) < 20:
             return False, "API key too short"
         
-        if len(api_key) > 200:
+        if len(api_key) > MAX_API_KEY_LENGTH:
             return False, "API key too long"
         
         return True, None

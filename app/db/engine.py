@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.db.models import Base
+
+logger = logging.getLogger(__name__)
 
 # Database configuration
 DATA_DIR = Path("./data")
@@ -26,7 +29,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_database():
     """Initialize database - create all tables if they don't exist"""
     Base.metadata.create_all(bind=engine)
-    print(f"✓ Database initialized at {DB_PATH}")
+    logger.info(f"✓ Database initialized at {DB_PATH}")
 
 def create_tables():
     """Create all tables - alias for init_database for compatibility"""

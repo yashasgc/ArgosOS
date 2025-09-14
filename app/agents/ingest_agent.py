@@ -1,7 +1,7 @@
 """
 IngestAgent - Handles file ingestion, text extraction, and AI processing
 """
-from app.utils.hash import compute_bytes_hash
+import logging
 import time
 import json
 from pathlib import Path
@@ -14,6 +14,13 @@ from app.db.models import Document
 from app.db.crud import DocumentCRUD, TagCRUD
 from app.db.schemas import DocumentCreate
 from app.llm.provider import LLMProvider
+from app.utils.hash import compute_bytes_hash
+from app.constants import (
+    MAX_FILE_SIZE, MAX_TEXT_PREVIEW, MAX_CONTENT_PREVIEW, MAX_SUMMARY_PREVIEW,
+    TEXT_ENCODINGS
+)
+
+logger = logging.getLogger(__name__)
 
 # Import OCR and text extraction libraries
 try:
@@ -33,8 +40,6 @@ try:
     from pdfminer.high_level import extract_text as pdfminer_extract
     PDFMINER_AVAILABLE = True
 except ImportError:
-
-    GeneratorExit
     PDFMINER_AVAILABLE = False
 
 try:
@@ -86,11 +91,11 @@ class IngestAgent:
     def _check_dependencies(self):
         """Check if required dependencies are available"""
         if not TESSERACT_AVAILABLE:
-            print("Warning: pytesseract not available. OCR functionality will be limited.")
+            logger.warning("pytesseract not available. OCR functionality will be limited.")
         if not PYMUPDF_AVAILABLE and not PDFMINER_AVAILABLE:
-            print("Warning: No PDF libraries available. PDF processing will not work.")
+            logger.warning("No PDF libraries available. PDF processing will not work.")
         if not DOCX_AVAILABLE:
-            print("Warning: python-docx not available. DOCX processing will not work.")
+            logger.warning("python-docx not available. DOCX processing will not work.")
     
     def is_supported(self, mime_type: str) -> bool:
         """Check if the MIME type is supported for text extraction"""
@@ -136,8 +141,7 @@ class IngestAgent:
             # Get file metadata
             file_size = len(file_data)
             
-            # File size validation (100MB limit)
-            MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+            # File size validation
             if file_size > MAX_FILE_SIZE:
                 errors.append(f"File too large: {file_size} bytes (max: {MAX_FILE_SIZE} bytes)")
                 return None, errors
@@ -152,14 +156,14 @@ class IngestAgent:
                 return existing_doc, errors
             
             # Extract text from file data
-            print(f"Extracting text from {filename}...")
+            logger.info(f"Extracting text from {filename}...")
             extracted_text = self._extract_text(file_data, mime_type, filename)
             if not extracted_text:
-                print(f"Could not extract text from {filename}, creating document without content")
+                logger.warning(f"Could not extract text from {filename}, creating document without content")
                 extracted_text = ""  # Create empty text instead of failing
                 errors.append(f"Could not extract text from {filename} - document created without content")
             
-            print(f"Successfully extracted {len(extracted_text)} characters")
+            logger.info(f"Successfully extracted {len(extracted_text)} characters")
             
             # Generate title if not provided
             if not title:
@@ -169,18 +173,18 @@ class IngestAgent:
             summary = ""
             if self.llm_provider.is_available():
                 try:
-                    print("Generating summary using LLM...")
+                    logger.info("Generating summary using LLM...")
                     # For images with no extracted text, provide context about the image
                     if not extracted_text and mime_type.startswith('image/'):
-                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, receipts, or other visual information."
+                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, documents, or other visual information. Please analyze the image content and provide a summary based on what you can determine from the filename and context."
                         summary = self.llm_provider.summarize(image_context)
                     else:
                         summary = self.llm_provider.summarize(extracted_text)
-                    print(f"Generated summary: {summary[:100]}...")
+                    logger.info(f"Generated summary: {summary[:MAX_SUMMARY_PREVIEW]}...")
                 except Exception as e:
                     errors.append(f"Failed to generate summary: {str(e)}")
             else:
-                print("LLM not available, skipping summary generation")
+                logger.warning("LLM not available, skipping summary generation")
                 errors.append("OpenAI API key not configured - summary generation skipped")
             
             # Save file to disk
@@ -190,7 +194,7 @@ class IngestAgent:
             
             # Write file data to disk
             blob_path.write_bytes(file_data)
-            print(f"File saved to: {blob_path}")
+            logger.info(f"File saved to: {blob_path}")
             
             # Create document record
             current_time = int(time.time() * 1000)
@@ -212,16 +216,16 @@ class IngestAgent:
             tags = []
             if self.llm_provider.is_available():
                 try:
-                    print("Generating tags using LLM...")
+                    logger.info("Generating tags using LLM...")
                     # For images with no extracted text, provide context about the image
                     if not extracted_text and mime_type.startswith('image/'):
-                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, receipts, or other visual information."
+                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, documents, or other visual information. Please analyze the image content and generate relevant tags based on what you can determine from the filename and context."
                         tag_names = self.llm_provider.generate_tags(image_context)
                     else:
                         tag_names = self.llm_provider.generate_tags(extracted_text)
                     
                     if tag_names:
-                        print(f"Generated tags: {tag_names}")
+                        logger.info(f"Generated tags: {tag_names}")
                         
                         # Add tags to tags table (get or create)
                         for tag_name in tag_names:
@@ -232,11 +236,11 @@ class IngestAgent:
                         db.commit()
                         tags = tag_names
                     else:
-                        print("No tags generated by LLM")
+                        logger.warning("No tags generated by LLM")
                 except Exception as e:
                     errors.append(f"Failed to generate tags: {str(e)}")
             else:
-                print("LLM not available, skipping tag generation")
+                logger.warning("LLM not available, skipping tag generation")
                 errors.append("OpenAI API key not configured - tag generation skipped")
             
             return document, errors
@@ -258,14 +262,22 @@ class IngestAgent:
             Extracted text or None if extraction failed
         """
         if not self.is_supported(mime_type):
-            print(f"Unsupported file type: {mime_type}")
+            logger.warning(f"Unsupported file type: {mime_type}")
             return None
         
         extraction_method = self.SUPPORTED_TYPES[mime_type]
         
         try:
             if extraction_method == 'ocr':
-                return self._extract_with_ocr(file_data)
+                # Try Vision API first for images, fallback to OCR
+                if mime_type.startswith('image/'):
+                    extracted_text = self._extract_with_vision_api(file_data, filename)
+                    if not extracted_text:
+                        logger.warning("Vision API failed, trying OCR fallback...")
+                        extracted_text = self._extract_with_ocr(file_data)
+                    return extracted_text
+                else:
+                    return self._extract_with_ocr(file_data)
             elif extraction_method == 'pdf':
                 return self._extract_from_pdf(file_data)
             elif extraction_method == 'docx':
@@ -273,27 +285,51 @@ class IngestAgent:
             elif extraction_method == 'text':
                 return self._extract_from_text(file_data)
             else:
-                print(f"Unknown extraction method: {extraction_method}")
+                logger.error(f"Unknown extraction method: {extraction_method}")
                 return None
                 
         except Exception as e:
-            print(f"Error extracting text from {filename}: {e}")
+            logger.error(f"Error extracting text from {filename}: {e}")
             return None
     
+    def _extract_with_vision_api(self, file_data: bytes, filename: str) -> Optional[str]:
+        """Extract text from image using OpenAI Vision API"""
+        if not self.llm_provider.is_available():
+            logger.warning("Vision API not available - OpenAI API key not configured")
+            return None
+        
+        try:
+            logger.info(f"Using Vision API for image: {filename}")
+            extracted_text = self.llm_provider.extract_text_from_image(file_data, filename)
+            
+            if not extracted_text:
+                logger.warning("No text extracted by Vision API")
+                return None
+            
+            logger.info(f"Vision API extracted {len(extracted_text)} characters from image")
+            logger.debug(f"Vision API text preview: {extracted_text[:MAX_TEXT_PREVIEW]}...")
+            return extracted_text
+            
+        except Exception as e:
+            logger.error(f"Vision API extraction failed: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return None
+
     def _extract_with_ocr(self, file_data: bytes) -> Optional[str]:
-        """Extract text from image bytes using OCR"""
+        """Extract text from image bytes using OCR (fallback)"""
         if not TESSERACT_AVAILABLE:
-            print("OCR not available - pytesseract not installed")
+            logger.warning("OCR not available - pytesseract not installed")
             return None
         
         try:
             # Open image from bytes
             image = Image.open(BytesIO(file_data))
-            print(f"Image format: {image.format}, mode: {image.mode}, size: {image.size}")
+            logger.debug(f"Image format: {image.format}, mode: {image.mode}, size: {image.size}")
             
             # Handle MPO and other problematic formats
             if image.format == 'MPO':
-                print("Converting MPO to JPEG format for OCR")
+                logger.info("Converting MPO to JPEG format for OCR")
                 # Convert MPO to RGB and then save as JPEG in memory
                 if image.mode != 'RGB':
                     image = image.convert('RGB')
@@ -304,36 +340,79 @@ class IngestAgent:
                 image.save(jpeg_buffer, format='JPEG', quality=95)
                 jpeg_buffer.seek(0)
                 image = Image.open(jpeg_buffer)
-                print(f"Converted to JPEG: {image.format}, mode: {image.mode}")
+                logger.debug(f"Converted to JPEG: {image.format}, mode: {image.mode}")
             
             # Convert to RGB if necessary (for some image formats)
             if image.mode not in ['RGB', 'L']:
-                print(f"Converting image from {image.mode} to RGB")
+                logger.debug(f"Converting image from {image.mode} to RGB")
                 image = image.convert('RGB')
+            
+            # Apply generic image preprocessing to improve OCR
+            logger.debug("Applying image preprocessing for better OCR...")
+            try:
+                # Convert to grayscale for better contrast
+                if image.mode != 'L':
+                    gray_image = image.convert('L')
+                else:
+                    gray_image = image
+                
+                # Apply contrast enhancement for better text recognition
+                from PIL import ImageEnhance
+                enhancer = ImageEnhance.Contrast(gray_image)
+                enhanced_image = enhancer.enhance(1.5)  # Moderate contrast increase
+                
+                # Try with enhanced image first
+                image = enhanced_image
+                logger.debug("Applied contrast enhancement for better OCR")
+            except Exception as e:
+                logger.debug(f"Image preprocessing failed: {e}, using original image")
             
             # Try different OCR configurations for better results
             try:
-                # First try with default settings
-                text = pytesseract.image_to_string(image, lang='eng')
+                # Try multiple OCR configurations for better text extraction
+                ocr_configs = [
+                    '--psm 6',  # Uniform block of text
+                    '--psm 4',  # Single column of text
+                    '--psm 3',  # Fully automatic page segmentation
+                    '--psm 8',  # Single word
+                    '--psm 7',  # Single text line
+                    ''  # Default
+                ]
+                
+                text = ""
+                for config in ocr_configs:
+                    try:
+                        if config:
+                            text = pytesseract.image_to_string(image, lang='eng', config=config)
+                        else:
+                            text = pytesseract.image_to_string(image, lang='eng')
+                        
+                        if text and len(text.strip()) > 50:
+                            logger.debug(f"OCR succeeded with config: {config or 'default'}")
+                            break
+                    except Exception as e:
+                        logger.debug(f"OCR failed with config {config or 'default'}: {e}")
+                        continue
+                    
             except Exception as ocr_error:
-                print(f"Default OCR failed: {ocr_error}, trying alternative approach")
-                # Try with different page segmentation mode
-                text = pytesseract.image_to_string(image, lang='eng', config='--psm 6')
+                logger.warning(f"All OCR attempts failed: {ocr_error}")
+                text = ""
             
             # Clean up the text
             text = text.strip()
             
             if not text:
-                print(f"No text found in image")
+                logger.warning(f"No text found in image")
                 return None
             
-            print(f"OCR extracted {len(text)} characters from image")
+            logger.info(f"OCR extracted {len(text)} characters from image")
+            logger.debug(f"OCR text preview: {text[:MAX_TEXT_PREVIEW]}...")
             return text
             
         except Exception as e:
-            print(f"OCR extraction failed: {e}")
+            logger.error(f"OCR extraction failed: {e}")
             import traceback
-            traceback.print_exc()
+            logger.debug(traceback.format_exc())
             return None
     
     def _extract_from_pdf(self, file_data: bytes) -> Optional[str]:
@@ -348,28 +427,28 @@ class IngestAgent:
                 doc.close()
                 
                 if text.strip():
-                    print(f"PyMuPDF extracted {len(text)} characters from PDF")
+                    logger.info(f"PyMuPDF extracted {len(text)} characters from PDF")
                     return text.strip()
             except Exception as e:
-                print(f"PyMuPDF extraction failed: {e}")
+                logger.warning(f"PyMuPDF extraction failed: {e}")
         
         # Fallback to pdfminer
         if PDFMINER_AVAILABLE:
             try:
                 text = pdfminer_extract(BytesIO(file_data))
                 if text.strip():
-                    print(f"pdfminer extracted {len(text)} characters from PDF")
+                    logger.info(f"pdfminer extracted {len(text)} characters from PDF")
                     return text.strip()
             except Exception as e:
-                print(f"pdfminer extraction failed: {e}")
+                logger.warning(f"pdfminer extraction failed: {e}")
         
-        print(f"No PDF extraction method available")
+        logger.warning(f"No PDF extraction method available")
         return None
     
     def _extract_from_docx(self, file_data: bytes) -> Optional[str]:
         """Extract text from DOCX bytes"""
         if not DOCX_AVAILABLE:
-            print("DOCX extraction not available - python-docx not installed")
+            logger.warning("DOCX extraction not available - python-docx not installed")
             return None
         
         try:
@@ -389,38 +468,38 @@ class IngestAgent:
             
             text = text.strip()
             if text:
-                print(f"DOCX extracted {len(text)} characters")
+                logger.info(f"DOCX extracted {len(text)} characters")
                 return text
             else:
-                print(f"No text found in DOCX")
+                logger.warning(f"No text found in DOCX")
                 return None
                 
         except Exception as e:
-            print(f"DOCX extraction failed: {e}")
+            logger.error(f"DOCX extraction failed: {e}")
             return None
     
     def _extract_from_text(self, file_data: bytes) -> Optional[str]:
         """Extract text from raw text bytes"""
         try:
             # Try different encodings
-            encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252']
+            encodings = TEXT_ENCODINGS
             
             for encoding in encodings:
                 try:
                     text = file_data.decode(encoding)
                     
                     if text.strip():
-                        print(f"Text extracted {len(text)} characters using {encoding}")
+                        logger.info(f"Text extracted {len(text)} characters using {encoding}")
                         return text.strip()
                         
                 except UnicodeDecodeError:
                     continue
             
-            print(f"Could not decode text data")
+            logger.warning(f"Could not decode text data")
             return None
             
         except Exception as e:
-            print(f"Text extraction failed: {e}")
+            logger.error(f"Text extraction failed: {e}")
             return None
     
     

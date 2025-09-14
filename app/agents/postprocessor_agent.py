@@ -1,6 +1,7 @@
 """
 PostProcessorAgent - Advanced document processing with OCR and multi-step LLM processing
 """
+import logging
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ import json
 from app.db.models import Document
 from app.db.crud import DocumentCRUD
 from app.llm.provider import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 class PostProcessorAgent:
@@ -121,7 +124,7 @@ class PostProcessorAgent:
             documents = db.query(Document).filter(Document.id.in_(document_ids)).all()
             return documents
         except Exception as e:
-            print(f"Error getting documents by IDs: {e}")
+            logger.error(f"Error getting documents by IDs: {e}")
             return []
     
     def _extract_document_contents(self, documents: List[Document]) -> Dict[str, str]:
@@ -140,10 +143,10 @@ class PostProcessorAgent:
                     extracted_contents[doc.id] = content
                 else:
                     extracted_contents[doc.id] = ""
-                    print(f"File not found for document {doc.id}: {doc.storage_path}")
+                    logger.warning(f"File not found for document {doc.id}: {doc.storage_path}")
                     
             except Exception as e:
-                print(f"Error extracting content from document {doc.id}: {e}")
+                logger.error(f"Error extracting content from document {doc.id}: {e}")
                 extracted_contents[doc.id] = ""
         
         return extracted_contents
@@ -188,7 +191,7 @@ Answer:"""
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error generating direct answer: {e}")
+            logger.error(f"Error generating direct answer: {e}")
             return "Error generating answer"
     
     def _extract_text_from_file(self, file_data: bytes, mime_type: str) -> str:
@@ -213,7 +216,7 @@ Answer:"""
             else:
                 return ""
         except Exception as e:
-            print(f"Error extracting text from file: {e}")
+            logger.error(f"Error extracting text from file: {e}")
             return ""
     
     def _find_relevant_content(self, query: str, extracted_contents: Dict[str, str]) -> str:
@@ -255,7 +258,7 @@ Relevant Information:"""
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error finding relevant content: {e}")
+            logger.error(f"Error finding relevant content: {e}")
             return "Error processing content with LLM"
     
     def _decide_additional_processing(self, query: str, relevant_content: str) -> Dict[str, Any]:
@@ -329,8 +332,8 @@ Decision:"""
                 return decision
                 
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"Failed to parse JSON response: {e}")
-                print(f"Response content: {content}")
+                logger.warning(f"Failed to parse JSON response: {e}")
+                logger.debug(f"Response content: {content}")
                 
                 # Fallback: return safe default
                 return {
@@ -339,7 +342,7 @@ Decision:"""
                 }
             
         except Exception as e:
-            print(f"Error deciding additional processing: {e}")
+            logger.error(f"Error deciding additional processing: {e}")
             return {
                 'needs_processing': False,
                 'instructions': None
@@ -379,5 +382,5 @@ Processed Result:"""
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error performing additional processing: {e}")
+            logger.error(f"Error performing additional processing: {e}")
             return relevant_content

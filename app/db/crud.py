@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
@@ -5,6 +6,8 @@ import json
 
 from app.db.models import Document, Tag
 from app.db.schemas import DocumentCreate, TagCreate
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentCRUD:
@@ -97,18 +100,18 @@ class DocumentCRUD:
                 file_path = Path(document.storage_path)
                 if file_path.exists():
                     file_path.unlink()
-                    print(f"Deleted file: {file_path}")
+                    logger.info(f"Deleted file: {file_path}")
             
             
             # Delete the document from database
             db.delete(document)
             db.commit()
             
-            print(f"Deleted document: {document_id}")
+            logger.info(f"Deleted document: {document_id}")
             return True
             
         except Exception as e:
-            print(f"Error deleting document {document_id}: {e}")
+            logger.error(f"Error deleting document {document_id}: {e}")
             db.rollback()
             return False
 

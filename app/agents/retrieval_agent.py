@@ -1,6 +1,7 @@
 """
 RetrievalAgent - Handles query processing and document retrieval using LLM-generated SQL
 """
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.db.models import Document, Tag
 from app.db.crud import TagCRUD
 from app.llm.provider import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 class RetrievalAgent:
@@ -80,7 +83,7 @@ class RetrievalAgent:
             
             # If no documents found with tags, try direct text search
             if not documents:
-                print("No documents found with generated tags, trying direct text search")
+                logger.info("No documents found with generated tags, trying direct text search")
                 from app.db.crud import DocumentCRUD
                 documents = DocumentCRUD.search(db, query, 0, limit)
             
@@ -113,7 +116,7 @@ class RetrievalAgent:
             tags = TagCRUD.get_all(db)
             return [tag.name for tag in tags]
         except Exception as e:
-            print(f"Error getting available tags: {e}")
+            logger.error(f"Error getting available tags: {e}")
             return []
     
     def _generate_relevant_tags(self, query: str, available_tags: List[str], db: Session, limit: int = 10) -> List[str]:
@@ -130,7 +133,7 @@ class RetrievalAgent:
             List of relevant tag names
         """
         if not self.llm_provider.is_available():
-            print("LLM not available, falling back to simple text matching")
+            logger.warning("LLM not available, falling back to simple text matching")
             # Fallback: simple text matching in tags, titles, and summaries
             from app.db.crud import DocumentCRUD
             try:
@@ -161,7 +164,7 @@ class RetrievalAgent:
                 
                 return matching_tags
             except Exception as e:
-                print(f"Error in fallback search: {e}")
+                logger.error(f"Error in fallback search: {e}")
                 return []
         
         try:
@@ -201,18 +204,18 @@ Relevant tags:"""
                 # Filter to only include tags that actually exist in our database
                 valid_tags = [tag for tag in relevant_tags if tag in available_tags]
                 
-                print(f"Generated relevant tags: {valid_tags}")
+                logger.info(f"Generated relevant tags: {valid_tags}")
                 return valid_tags
                 
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"Failed to parse JSON response: {e}, falling back to comma parsing")
+                logger.warning(f"Failed to parse JSON response: {e}, falling back to comma parsing")
                 # Fallback: split by comma and clean up
                 relevant_tags = [tag.strip().strip('"\'') for tag in relevant_tags_text.split(',')]
                 valid_tags = [tag for tag in relevant_tags if tag in available_tags]
                 return valid_tags
             
         except Exception as e:
-            print(f"Error generating relevant tags: {e}")
+            logger.error(f"Error generating relevant tags: {e}")
             # Fallback: simple text matching
             relevant_tags = []
             query_lower = query.lower()
@@ -238,7 +241,7 @@ Relevant tags:"""
             
             if not relevant_tags:
                 # If no relevant tags, return empty results instead of all documents
-                print("No relevant tags found, returning empty results")
+                logger.warning("No relevant tags found, returning empty results")
                 return []
             
             # Search for documents that contain any of the relevant tags
@@ -261,7 +264,7 @@ Relevant tags:"""
             return unique_docs[:limit]
             
         except Exception as e:
-            print(f"Error searching documents with generated tags: {e}")
+            logger.error(f"Error searching documents with generated tags: {e}")
             return []
     
     def _search_documents_with_tags(self, db: Session, query: str, limit: int) -> List[Document]:
@@ -302,7 +305,7 @@ Relevant tags:"""
             return documents
             
         except Exception as e:
-            print(f"Error searching documents with tags: {e}")
+            logger.error(f"Error searching documents with tags: {e}")
             return []
     
     def _get_document_file_path(self, document: Document) -> Optional[str]:
@@ -325,16 +328,16 @@ Relevant tags:"""
                     if file_path.exists():
                         return str(file_path)
                     else:
-                        print(f"File not found: {document.storage_path}")
+                        logger.warning(f"File not found: {document.storage_path}")
                         return None
                 else:
-                    print(f"Document stored in memory only: {document.storage_path}")
+                    logger.debug(f"Document stored in memory only: {document.storage_path}")
                     return None
             
             return None
             
         except Exception as e:
-            print(f"Error getting file path for document {document.id}: {e}")
+            logger.error(f"Error getting file path for document {document.id}: {e}")
             return None
     
     def _pass_to_postprocessor(self, query: str, file_paths: List[str]):
@@ -354,10 +357,10 @@ Relevant tags:"""
             # Process the files with the postprocessor
             for file_path in file_paths:
                 result = postprocessor.process_file(file_path, query)
-                print(f"Postprocessor result for {file_path}: {result}")
+                logger.debug(f"Postprocessor result for {file_path}: {result}")
                 
         except Exception as e:
-            print(f"Error passing to postprocessor: {e}")
+            logger.error(f"Error passing to postprocessor: {e}")
     
     
     def get_document_content(self, document_id: str, db: Session) -> Optional[Dict[str, Any]]:

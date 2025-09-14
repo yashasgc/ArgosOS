@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +13,13 @@ from app.agents.postprocessor_agent import PostProcessorAgent
 from app.llm.openai_provider import OpenAIProvider
 from openai import OpenAI
 from app.utils.validation import FileValidator, ContentValidator, APIKeyValidator, ValidationError
+from app.constants import (
+    MAX_DOCUMENT_LIMIT, MAX_SEARCH_LIMIT, HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND, HTTP_413_PAYLOAD_TOO_LARGE, HTTP_500_INTERNAL_SERVER_ERROR,
+    ALLOWED_ORIGINS
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="ArgosOS Backend",
@@ -22,7 +30,7 @@ app = FastAPI(
 # CORS middleware - restrict to specific origins for security
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],  # Restrict headers for security
@@ -220,16 +228,16 @@ async def upload_file(
     """Upload and process a file with security validation"""
     try:
         # Log file upload details
-        print(f"Uploading file: {file.filename} ({file.content_type})")
+        logger.info(f"Uploading file: {file.filename} ({file.content_type})")
         
         # Security validations
         is_valid, error = FileValidator.validate_filename(file.filename)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=error)
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=error)
         
         is_valid, error = FileValidator.validate_mime_type(file.content_type)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=error)
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=error)
         
         # Read file content
         content = await file.read()
@@ -237,7 +245,7 @@ async def upload_file(
         # Validate file size
         is_valid, error = FileValidator.validate_file_size(content)
         if not is_valid:
-            raise HTTPException(status_code=413, detail=error)
+            raise HTTPException(status_code=HTTP_413_PAYLOAD_TOO_LARGE, detail=error)
         
         # Additional validation for PDF files - removed overly restrictive size check
         
@@ -289,11 +297,11 @@ async def search_documents(
         # Validate search query
         is_valid, error = ContentValidator.validate_search_query(query)
         if not is_valid:
-            raise HTTPException(status_code=400, detail=error)
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=error)
         
         # Validate limit
-        if limit < 1 or limit > 100:
-            raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
+        if limit < 1 or limit > MAX_SEARCH_LIMIT:
+            raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=f"Limit must be between 1 and {MAX_SEARCH_LIMIT}")
         
         retrieval_agent = get_retrieval_agent()
         results = retrieval_agent.search_documents(query, db, limit)
@@ -440,11 +448,11 @@ async def get_document_content(
         # Get document from database
         document = DocumentCRUD.get_by_id(db, document_id)
         if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document not found")
         
         # Read file content
         if not document.storage_path or not Path(document.storage_path).exists():
-            raise HTTPException(status_code=404, detail="Document file not found")
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
         
         with open(document.storage_path, 'rb') as f:
             content = f.read()
@@ -481,7 +489,7 @@ async def get_document_content(
                             "is_binary": True
                         }
                 except Exception as e:
-                    print(f"PDF extraction error: {e}")
+                    logger.error(f"PDF extraction error: {e}")
                     # Fallback to base64 if extraction fails
                     import base64
                     return {
@@ -532,11 +540,11 @@ async def download_document(
         # Get document from database
         document = DocumentCRUD.get_by_id(db, document_id)
         if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document not found")
         
         # Check if file exists
         if not document.storage_path or not Path(document.storage_path).exists():
-            raise HTTPException(status_code=404, detail="Document file not found")
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
         
         # Return file for opening (not downloading)
         return FileResponse(
@@ -548,7 +556,7 @@ async def download_document(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
+        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to download document: {str(e)}")
 
 # Delete document endpoint
 @app.delete("/api/documents/{document_id}")

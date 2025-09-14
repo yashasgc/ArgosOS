@@ -1,8 +1,14 @@
 from typing import List
-from openai import OpenAI
+import logging
 import json
 import re
+from openai import OpenAI
 from .provider import LLMProvider
+from app.constants import (
+    VISION_MAX_TOKENS, SQL_MAX_TOKENS
+)
+
+logger = logging.getLogger(__name__)
 
 class OpenAIProvider(LLMProvider):
     """OpenAI GPT-based LLM provider"""
@@ -31,25 +37,19 @@ class OpenAIProvider(LLMProvider):
             return ""
         
         try:
-            # Truncate text if too long (OpenAI has token limits)
-            max_chars = 3000  # Roughly 750 tokens
-            if len(text) > max_chars:
-                text = text[:max_chars] + "..."
-            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that creates concise summaries of documents. Provide a clear, informative summary in 2-3 sentences. Return only the summary text, no additional formatting or explanations."},
+                    {"role": "system", "content": "You are a helpful assistant that creates comprehensive summaries of documents. Provide a detailed, informative summary focusing on the main topics and key information. Return only the summary text, no additional formatting or explanations."},
                     {"role": "user", "content": f"Please summarize the following document content:\n\n{text}"}
                 ],
-                max_tokens=150,
                 temperature=0.3
             )
             
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"Error generating summary with OpenAI: {e}")
+            logger.error(f"Error generating summary with OpenAI: {e}")
             # Fallback to simple truncation
             words = text.split()
             if len(words) <= 50:
@@ -57,24 +57,67 @@ class OpenAIProvider(LLMProvider):
             else:
                 return " ".join(words[:50]) + "..."
     
+    def extract_text_from_image(self, image_data: bytes, filename: str) -> str:
+        """Extract text from image using OpenAI Vision API"""
+        if not self.is_available() or not self.client:
+            return ""
+        
+        try:
+            import base64
+            import mimetypes
+            
+            # Determine MIME type
+            mime_type, _ = mimetypes.guess_type(filename)
+            if not mime_type or not mime_type.startswith('image/'):
+                mime_type = 'image/jpeg'  # Default fallback
+            
+            # Encode image to base64
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+            data_url = f"data:{mime_type};base64,{base64_image}"
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o",  # Use GPT-4o for vision
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Extract all text from this image. Return only the extracted text, preserving line breaks and formatting. Do not add any explanations or comments."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": data_url
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=VISION_MAX_TOKENS,
+                temperature=0.1
+            )
+            
+            extracted_text = response.choices[0].message.content.strip()
+            logger.info(f"Vision API extracted {len(extracted_text)} characters from image")
+            return extracted_text
+            
+        except Exception as e:
+            logger.error(f"Vision API extraction failed: {e}")
+            return ""
+
     def generate_tags(self, text: str) -> List[str]:
         """Generate tags using OpenAI"""
         if not self.is_available() or not self.client:
             return []
         
         try:
-            # Truncate text if too long
-            max_chars = 2000  # Roughly 500 tokens
-            if len(text) > max_chars:
-                text = text[:max_chars] + "..."
-            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that generates relevant tags for documents. Return ONLY a valid JSON array of 3-7 relevant tags (lowercase, no spaces, use hyphens for multi-word tags). Focus on the main topics, document type, and key concepts. Do not include any other text or explanation."},
+                    {"role": "system", "content": "You are a helpful assistant that generates comprehensive and relevant tags for documents. Return ONLY a valid JSON array of relevant tags (lowercase, no spaces, use hyphens for multi-word tags). Focus on the main topics, document type, key concepts, and any important details. Generate as many relevant tags as needed for thorough categorization. Do not include any other text or explanation."},
                     {"role": "user", "content": f"Generate relevant tags for this document content:\n\n{text}"}
                 ],
-                max_tokens=100,
                 temperature=0.3
             )
             
@@ -101,13 +144,13 @@ class OpenAIProvider(LLMProvider):
                     pass
                 
                 # Fallback: split by common delimiters and clean up
-                print(f"JSON parsing failed, using fallback for content: {content}")
+                logger.warning(f"JSON parsing failed, using fallback for content: {content}")
                 tags = re.split(r'[,;\n]', content)
                 tags = [tag.strip().lower().strip('"\'[]') for tag in tags if tag.strip()]
                 return [tag for tag in tags if tag][:7]
             
         except Exception as e:
-            print(f"Error generating tags with OpenAI: {e}")
+            logger.error(f"Error generating tags with OpenAI: {e}")
             # Fallback to simple keyword-based tagging
             tags = []
             text_lower = text.lower()
@@ -154,7 +197,7 @@ class OpenAIProvider(LLMProvider):
                     {"role": "system", "content": f"You are a SQL expert. Generate SQL queries based on natural language requests. Use the following database schema:\n\n{schema}\n\nReturn only the SQL query, no explanations. Use proper SQL syntax and parameterized queries where appropriate."},
                     {"role": "user", "content": f"Generate a SQL query for: {query}"}
                 ],
-                max_tokens=200,
+                max_tokens=SQL_MAX_TOKENS,
                 temperature=0.1
             )
             
@@ -167,7 +210,7 @@ class OpenAIProvider(LLMProvider):
             return sql_query
                 
         except Exception as e:
-            print(f"Error generating SQL query with OpenAI: {e}")
+            logger.error(f"Error generating SQL query with OpenAI: {e}")
             # Fallback to simple keyword-based SQL generation
             query_lower = query.lower()
             
