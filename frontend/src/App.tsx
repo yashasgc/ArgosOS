@@ -31,6 +31,7 @@ function App() {
   const [searchResults, setSearchResults] = useState<Document[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [llmAvailable, setLlmAvailable] = useState<boolean | null>(null);
+  const [directAnswer, setDirectAnswer] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
@@ -78,10 +79,12 @@ function App() {
       if (result.success) {
         setSearchResults(result.data.results.documents || []);
         setLlmAvailable(result.data.results.llm_available || false);
+        setDirectAnswer(result.data.results.processed_content?.direct_answer || null);
       } else {
         console.error('Search failed:', result.error);
         setSearchResults([]);
         setLlmAvailable(null);
+        setDirectAnswer(null);
       }
     } catch (error) {
       console.error('Search error:', error);
@@ -111,18 +114,19 @@ function App() {
     loadDocuments();
   }, []);
 
-  // Debounce search
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchQuery.trim()) {
-        handleSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 500);
+  // Handle Enter key press for search
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      handleSearch(searchQuery);
+    }
+  };
 
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  // Handle search button click
+  const handleSearchClick = () => {
+    if (searchQuery.trim()) {
+      handleSearch(searchQuery);
+    }
+  };
 
   const checkApiKeyStatus = async () => {
     try {
@@ -434,20 +438,27 @@ function App() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search through your documents..."
+            placeholder="Search through your documents... (Press Enter to search)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-10 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
+            onKeyPress={handleKeyPress}
+            className="w-full px-10 pr-20 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
           />
-          {searchLoading && (
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-            </div>
-          )}
+          <button
+            onClick={handleSearchClick}
+            disabled={!searchQuery.trim() || searchLoading}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {searchLoading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              'Search'
+            )}
+          </button>
         </div>
       </div>
       
-      {searchQuery && (
+      {(searchQuery && searchResults.length > 0) || searchLoading ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -468,15 +479,33 @@ function App() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
               <span className="ml-2 text-gray-600">Searching...</span>
             </div>
-          ) : searchResults.length === 0 ? (
-            <p className="text-gray-500">No documents found matching your search.</p>
           ) : (
-            <div className="space-y-3">
-              {searchResults.map(doc => renderDocumentCard(doc, false))}
+            <div className="space-y-4">
+              {/* Direct Answer */}
+              {directAnswer && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Answer:</h3>
+                  <p className="text-blue-800 whitespace-pre-wrap">{directAnswer}</p>
+                </div>
+              )}
+              
+              {/* Search Results */}
+              {searchResults.length === 0 ? (
+                <p className="text-gray-500">No documents found matching your search.</p>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Related Documents:</h3>
+                  {searchResults.map(doc => renderDocumentCard(doc, false))}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      ) : searchQuery && !searchLoading ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500">Press Enter or click Search to find documents.</p>
+        </div>
+      ) : null}
     </div>
   );
 

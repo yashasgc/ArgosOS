@@ -80,13 +80,16 @@ class PostProcessorAgent:
             # Step 2: Extract content using OCR for all documents
             extracted_contents = self._extract_document_contents(documents)
             
-            # Step 3: Use LLM to find relevant content based on query
+            # Step 3: Generate a direct answer to the query
+            direct_answer = self._generate_direct_answer(query, extracted_contents)
+            
+            # Step 4: Use LLM to find relevant content based on query
             relevant_content = self._find_relevant_content(query, extracted_contents)
             
-            # Step 4: Check if additional processing is needed
+            # Step 5: Check if additional processing is needed
             processing_decision = self._decide_additional_processing(query, relevant_content)
             
-            # Step 5: Perform additional processing if needed
+            # Step 6: Perform additional processing if needed
             if processing_decision['needs_processing']:
                 final_result = self._perform_additional_processing(
                     query, 
@@ -96,7 +99,8 @@ class PostProcessorAgent:
             else:
                 final_result = relevant_content
             
-            # Format results
+            # Format results with direct answer
+            results['direct_answer'] = direct_answer
             results['processed_documents'] = [{
                 'document_id': doc.id,
                 'title': doc.title,
@@ -143,6 +147,49 @@ class PostProcessorAgent:
                 extracted_contents[doc.id] = ""
         
         return extracted_contents
+    
+    def _generate_direct_answer(self, query: str, extracted_contents: Dict[str, str]) -> str:
+        """Generate a direct answer to the query based on document contents."""
+        if not self.llm_provider.is_available():
+            return "LLM not available for generating direct answer"
+        
+        try:
+            # Combine all content
+            all_content = "\n\n".join([
+                f"Document {doc_id}:\n{content}" 
+                for doc_id, content in extracted_contents.items()
+            ])
+            
+            prompt = f"""
+Based on the following documents, provide a direct and concise answer to the question.
+
+Question: "{query}"
+
+Documents:
+{all_content}
+
+Instructions:
+- Answer the question directly and concisely
+- If the information is not available in the documents, say "Information not found in the documents"
+- If you find partial information, provide what you can find
+- Be specific and factual
+- Use bullet points or numbered lists if appropriate
+- Keep the answer under 200 words
+
+Answer:"""
+
+            response = self.llm_provider.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature=0.1
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"Error generating direct answer: {e}")
+            return "Error generating answer"
     
     def _extract_text_from_file(self, file_data: bytes, mime_type: str) -> str:
         """Extract text from file data based on MIME type."""
