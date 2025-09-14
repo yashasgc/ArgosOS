@@ -340,29 +340,6 @@ Relevant tags:"""
             logger.error(f"Error getting file path for document {document.id}: {e}")
             return None
     
-    def _pass_to_postprocessor(self, query: str, file_paths: List[str]):
-        """
-        Pass file paths to postprocessor agent for further processing.
-        
-        Args:
-            query: Original search query
-            file_paths: List of file paths to process
-        """
-        try:
-            from app.agents.postprocessor_agent import PostProcessorAgent
-            
-            # Create postprocessor agent
-            postprocessor = PostProcessorAgent(self.llm_provider)
-            
-            # Process the files with the postprocessor
-            for file_path in file_paths:
-                result = postprocessor.process_file(file_path, query)
-                logger.debug(f"Postprocessor result for {file_path}: {result}")
-                
-        except Exception as e:
-            logger.error(f"Error passing to postprocessor: {e}")
-    
-    
     def get_document_content(self, document_id: str, db: Session) -> Optional[Dict[str, Any]]:
         """
         Retrieve full document content and metadata.

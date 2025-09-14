@@ -67,6 +67,7 @@ def sample_documents(test_db):
     # Create documents
     doc1 = Document(
         id="doc1",
+        content_hash="hash1",
         title="Software Engineer Resume",
         summary="Experienced software engineer with 5 years of experience",
         mime_type="application/pdf",
@@ -76,6 +77,7 @@ def sample_documents(test_db):
     )
     doc2 = Document(
         id="doc2",
+        content_hash="hash2",
         title="Cover Letter",
         summary="Application cover letter for software position",
         mime_type="application/pdf",
@@ -120,7 +122,7 @@ class TestDocumentAPI:
             with patch('builtins.open', mock_open()) as mock_file:
                 mock_file.return_value.write.return_value = None
                 
-                with patch('app.agents.ingest_agent.pdfminer_extract_text') as mock_pdf:
+                with patch('app.agents.ingest_agent.IngestAgent._extract_from_pdf') as mock_pdf:
                     mock_pdf.return_value = "Sample PDF content for testing"
                     
                     # Mock LLM calls
@@ -266,12 +268,12 @@ class TestHealthAPI:
     
     def test_health_check(self, client):
         """Test health check endpoint"""
-        response = client.get("/v1/health")
+        response = client.get("/health")
         
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        assert "timestamp" in data
+        assert "message" in data
     
     def test_root_endpoint(self, client):
         """Test root endpoint"""

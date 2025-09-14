@@ -122,7 +122,7 @@ class TestIngestAgent:
                     with patch('app.agents.ingest_agent.pytesseract') as mock_ocr:
                         mock_ocr.image_to_string.return_value = "Sample text from image"
                         
-                        result, errors = agent.ingest_document(
+                        result, errors = agent.ingest_file(
                             file_data=sample_image_content,
                             filename="test_image.jpg",
                             mime_type="image/jpeg",
@@ -150,10 +150,10 @@ class TestIngestAgent:
             with patch('builtins.open', mock_open()) as mock_file:
                 mock_file.return_value.write.return_value = None
                 
-                with patch('app.agents.ingest_agent.pdfminer_extract_text') as mock_pdf:
+                with patch('app.agents.ingest_agent.IngestAgent._extract_from_pdf') as mock_pdf:
                     mock_pdf.return_value = sample_pdf_content
                     
-                    result, errors = agent.ingest_document(
+                    result, errors = agent.ingest_file(
                         file_data=b"fake_pdf_data",
                         filename="test_resume.pdf",
                         mime_type="application/pdf",
@@ -175,6 +175,7 @@ class TestRetrievalAgent:
         # Create test documents
         doc1 = Document(
             id="doc1",
+            content_hash="hash1",
             title="Software Engineer Resume",
             summary="Experienced software engineer",
             mime_type="application/pdf",
@@ -184,6 +185,7 @@ class TestRetrievalAgent:
         )
         doc2 = Document(
             id="doc2",
+            content_hash="hash2",
             title="Cover Letter",
             summary="Application cover letter",
             mime_type="application/pdf",
@@ -217,6 +219,7 @@ class TestRetrievalAgent:
         # Create test documents
         doc1 = Document(
             id="doc1",
+            content_hash="hash1",
             title="Software Engineer Resume",
             summary="Experienced software engineer",
             mime_type="application/pdf",
@@ -282,6 +285,7 @@ class TestPostProcessorAgent:
         # Create test documents
         doc1 = Document(
             id="doc1",
+            content_hash="hash1",
             title="Software Engineer Resume",
             summary="Experienced software engineer",
             mime_type="application/pdf",
@@ -351,10 +355,10 @@ class TestEndToEnd:
             with patch('builtins.open', mock_open()) as mock_file:
                 mock_file.return_value.write.return_value = None
                 
-                with patch('app.agents.ingest_agent.pdfminer_extract_text') as mock_pdf:
+                with patch('app.agents.ingest_agent.IngestAgent._extract_from_pdf') as mock_pdf:
                     mock_pdf.return_value = sample_pdf_content
                     
-                    doc, errors = ingest_agent.ingest_document(
+                    doc, errors = ingest_agent.ingest_file(
                         file_data=b"fake_pdf_data",
                         filename="test_resume.pdf",
                         mime_type="application/pdf",
