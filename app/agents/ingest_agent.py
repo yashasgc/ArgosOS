@@ -170,7 +170,12 @@ class IngestAgent:
             if self.llm_provider.is_available():
                 try:
                     print("Generating summary using LLM...")
-                    summary = self.llm_provider.summarize(extracted_text)
+                    # For images with no extracted text, provide context about the image
+                    if not extracted_text and mime_type.startswith('image/'):
+                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, receipts, or other visual information."
+                        summary = self.llm_provider.summarize(image_context)
+                    else:
+                        summary = self.llm_provider.summarize(extracted_text)
                     print(f"Generated summary: {summary[:100]}...")
                 except Exception as e:
                     errors.append(f"Failed to generate summary: {str(e)}")
@@ -208,7 +213,13 @@ class IngestAgent:
             if self.llm_provider.is_available():
                 try:
                     print("Generating tags using LLM...")
-                    tag_names = self.llm_provider.generate_tags(extracted_text)
+                    # For images with no extracted text, provide context about the image
+                    if not extracted_text and mime_type.startswith('image/'):
+                        image_context = f"Image file: {filename}, MIME type: {mime_type}, Size: {len(file_data)} bytes. This appears to be an image document that may contain text, receipts, or other visual information."
+                        tag_names = self.llm_provider.generate_tags(image_context)
+                    else:
+                        tag_names = self.llm_provider.generate_tags(extracted_text)
+                    
                     if tag_names:
                         print(f"Generated tags: {tag_names}")
                         
@@ -280,13 +291,34 @@ class IngestAgent:
             image = Image.open(BytesIO(file_data))
             print(f"Image format: {image.format}, mode: {image.mode}, size: {image.size}")
             
+            # Handle MPO and other problematic formats
+            if image.format == 'MPO':
+                print("Converting MPO to JPEG format for OCR")
+                # Convert MPO to RGB and then save as JPEG in memory
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                
+                # Save as JPEG in memory
+                import io
+                jpeg_buffer = io.BytesIO()
+                image.save(jpeg_buffer, format='JPEG', quality=95)
+                jpeg_buffer.seek(0)
+                image = Image.open(jpeg_buffer)
+                print(f"Converted to JPEG: {image.format}, mode: {image.mode}")
+            
             # Convert to RGB if necessary (for some image formats)
             if image.mode not in ['RGB', 'L']:
                 print(f"Converting image from {image.mode} to RGB")
                 image = image.convert('RGB')
             
-            # Extract text using Tesseract
-            text = pytesseract.image_to_string(image, lang='eng')
+            # Try different OCR configurations for better results
+            try:
+                # First try with default settings
+                text = pytesseract.image_to_string(image, lang='eng')
+            except Exception as ocr_error:
+                print(f"Default OCR failed: {ocr_error}, trying alternative approach")
+                # Try with different page segmentation mode
+                text = pytesseract.image_to_string(image, lang='eng', config='--psm 6')
             
             # Clean up the text
             text = text.strip()
