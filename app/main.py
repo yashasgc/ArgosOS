@@ -146,7 +146,7 @@ async def get_api_key_status():
             "services": list(api_keys.keys()) if api_keys else []
         }
     except Exception as e:
-        return {"configured": False, "encrypted": False, "error": "Failed to check API key status"}
+        return {"configured": False, "encrypted": False, "error": f"Failed to check API key status: {str(e)}"}
 
 @app.delete("/v1/api-key")
 async def clear_api_key():

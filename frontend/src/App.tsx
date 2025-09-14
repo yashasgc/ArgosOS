@@ -35,6 +35,8 @@ function App() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<{ configured: boolean; encrypted: boolean } | null>(null);
+
+
   const [loading, setLoading] = useState(false);
 
 
@@ -145,16 +147,21 @@ function App() {
       const result = await apiCall({
         method: 'POST',
         endpoint: '/v1/api-key',
-        data: { api_key: apiKey }
+        data: { api_key: apiKey, service: 'openai' }
       });
 
-      if (result.success) {
+      if (result.success && result.data.encrypted) {
         setApiKeySaved(true);
         setTimeout(() => setApiKeySaved(false), 3000);
+        // Add a small delay to ensure the save is fully processed
+        await new Promise(resolve => setTimeout(resolve, 100));
         await checkApiKeyStatus();
         setApiKey(''); // Clear the input for security
       } else {
-        throw new Error(result.error || 'Failed to save API key');
+        // Handle case where API key was rejected
+        const errorMessage = result.data?.message || result.error || 'Failed to save API key';
+        alert(`API key rejected: ${errorMessage}`);
+        setApiKey(''); // Clear the input
       }
     } catch (error) {
       console.error('Error saving API key:', error);
@@ -165,6 +172,8 @@ function App() {
   };
 
   const handleClearApiKey = async () => {
+    if (loading) return; // Prevent multiple clicks
+    
     setLoading(true);
     try {
       const result = await apiCall({
@@ -580,12 +589,10 @@ function App() {
     }
   };
 
-  // Load API key status on component mount and when settings tab is active
+  // Load API key status on component mount
   useEffect(() => {
-    if (activeTab === 'settings') {
-      checkApiKeyStatus();
-    }
-  }, [activeTab]);
+    checkApiKeyStatus();
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">

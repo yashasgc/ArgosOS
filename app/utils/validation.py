@@ -138,7 +138,7 @@ class APIKeyValidator:
         if len(api_key) < 20:
             return False, "API key too short"
         
-        if len(api_key) > 100:
+        if len(api_key) > 200:
             return False, "API key too long"
         
         return True, None
