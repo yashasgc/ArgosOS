@@ -79,13 +79,30 @@ class RetrievalAgent:
             relevant_tags = self._generate_relevant_tags(query, available_tags, db, limit)
             
             # Step 3: Search for documents with those generated tags
+            logger.info(f"🔍 RETRIEVAL - Searching for documents with tags: {relevant_tags}")
             documents = self._search_documents_with_generated_tags(db, relevant_tags, limit)
+            logger.info(f"🔍 RETRIEVAL - Found {len(documents)} documents with tag search")
             
-            # If no documents found with tags, try direct text search
+            # Always try direct text search as fallback if tag search returns no results
             if not documents:
-                logger.info("No documents found with generated tags, trying direct text search")
+                logger.info("🔍 RETRIEVAL - No documents found with generated tags, trying direct text search")
                 from app.db.crud import DocumentCRUD
                 documents = DocumentCRUD.search(db, query, 0, limit)
+                logger.info(f"🔍 RETRIEVAL - Direct text search found {len(documents)} documents")
+            else:
+                # Even if we found some documents with tags, also try direct text search
+                # to catch documents that might have relevant content but different tags
+                logger.info(f"🔍 RETRIEVAL - Found {len(documents)} documents with tags, also trying direct text search")
+                from app.db.crud import DocumentCRUD
+                direct_docs = DocumentCRUD.search(db, query, 0, limit)
+                logger.info(f"🔍 RETRIEVAL - Direct text search found {len(direct_docs)} additional documents")
+                
+                # Merge results, avoiding duplicates
+                existing_ids = {doc.id for doc in documents}
+                for doc in direct_docs:
+                    if doc.id not in existing_ids:
+                        documents.append(doc)
+                logger.info(f"🔍 RETRIEVAL - Total documents after merge: {len(documents)}")
             
             # Step 4: Return document IDs for postprocessor
             document_ids = [doc.id for doc in documents]
@@ -157,10 +174,16 @@ class RetrievalAgent:
                 
                 # If no documents found, try partial matching on available tags
                 query_lower = query.lower()
+                query_words = query_lower.split()
                 matching_tags = []
+                
                 for tag in available_tags:
-                    if query_lower in tag.lower() or tag.lower() in query_lower:
-                        matching_tags.append(tag)
+                    tag_lower = tag.lower()
+                    # Check if any word from the query matches the tag
+                    for word in query_words:
+                        if word in tag_lower or tag_lower in word:
+                            matching_tags.append(tag)
+                            break
                 
                 return matching_tags
             except Exception as e:
@@ -191,7 +214,14 @@ Relevant tags:"""
             
             # Parse the JSON response
             relevant_tags_text = response.choices[0].message.content.strip()
+            logger.info(f"🔍 LLM TAG GENERATION - Query: '{query}'")
+            logger.info(f"🔍 LLM TAG GENERATION - Available tags count: {len(available_tags)}")
+            logger.info(f"🔍 LLM TAG GENERATION - Available tags: {available_tags}")
+            logger.info(f"🔍 LLM TAG GENERATION - LLM Prompt: {prompt}")
+            logger.info(f"🔍 LLM TAG GENERATION - Raw LLM response: '{relevant_tags_text}'")
+            
             if not relevant_tags_text:
+                logger.warning("🔍 LLM TAG GENERATION - Empty response from LLM")
                 return []
             
             try:
@@ -203,8 +233,12 @@ Relevant tags:"""
                 
                 # Filter to only include tags that actually exist in our database
                 valid_tags = [tag for tag in relevant_tags if tag in available_tags]
+                filtered_out = [tag for tag in relevant_tags if tag not in available_tags]
                 
-                logger.info(f"Generated relevant tags: {valid_tags}")
+                logger.info(f"🔍 LLM TAG GENERATION - Parsed tags: {relevant_tags}")
+                logger.info(f"🔍 LLM TAG GENERATION - Valid tags: {valid_tags}")
+                logger.info(f"🔍 LLM TAG GENERATION - Filtered out tags: {filtered_out}")
+                logger.info(f"🔍 LLM TAG GENERATION - Filtering: {len(relevant_tags)} -> {len(valid_tags)} tags")
                 return valid_tags
                 
             except (json.JSONDecodeError, ValueError) as e:

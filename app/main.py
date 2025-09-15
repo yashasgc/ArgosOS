@@ -311,7 +311,9 @@ async def search_documents(
         results['llm_available'] = llm_available
         
         # If we have document IDs, process them with postprocessor agent
+        logger.info(f"🔍 MAIN - Document IDs from retrieval: {results.get('document_ids')}")
         if results.get('document_ids') and results['document_ids']:
+            logger.info(f"🔍 MAIN - Calling postprocessor with {len(results['document_ids'])} documents")
             postprocessor_agent = get_postprocessor_agent()
             processed_results = postprocessor_agent.process_documents(
                 query=query,
@@ -319,6 +321,9 @@ async def search_documents(
                 db=db
             )
             results['processed_content'] = processed_results
+            logger.info(f"🔍 MAIN - Postprocessor results: {processed_results}")
+        else:
+            logger.info("🔍 MAIN - No document IDs found, skipping postprocessor")
         
         return {
             "success": True,

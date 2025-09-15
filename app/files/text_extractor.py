@@ -187,7 +187,76 @@ class TextExtractor:
             return None
     
     def _extract_from_pdf(self, file_data: bytes) -> Optional[str]:
-        """Extract text from PDF using PyMuPDF or pdfminer"""
+        """Extract text from PDF using OCR (convert to images first)"""
+        if not TESSERACT_AVAILABLE:
+            logger.warning("Tesseract not available for PDF OCR")
+            return None
+        
+        try:
+            # Try to import pdf2image
+            try:
+                from pdf2image import convert_from_bytes
+            except ImportError:
+                logger.warning("pdf2image not available, falling back to traditional PDF extraction")
+                return self._extract_from_pdf_traditional(file_data)
+            
+            # Convert PDF pages to images
+            images = convert_from_bytes(file_data, dpi=300)
+            
+            if not images:
+                logger.warning("No pages found in PDF")
+                return None
+            
+            # Extract text from each page using OCR
+            all_text = []
+            for i, image in enumerate(images):
+                try:
+                    # Convert to grayscale for better OCR
+                    if image.mode != 'L':
+                        image = image.convert('L')
+                    
+                    # Enhance contrast for better OCR
+                    enhancer = ImageEnhance.Contrast(image)
+                    image = enhancer.enhance(2.0)
+                    
+                    # Try multiple PSM modes for better text recognition
+                    psm_modes = [3, 4, 6, 7, 8]
+                    best_text = ""
+                    
+                    for psm in psm_modes:
+                        try:
+                            config = f'--psm {psm} -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?@#$%^&*()_+-=[]{{}}|;:,.<>?/~` '
+                            text = pytesseract.image_to_string(image, config=config)
+                            if len(text.strip()) > len(best_text.strip()):
+                                best_text = text
+                        except Exception as e:
+                            logger.debug(f"OCR PSM {psm} failed for page {i+1}: {e}")
+                            continue
+                    
+                    if best_text.strip():
+                        all_text.append(f"Page {i+1}:\n{best_text.strip()}")
+                        logger.info(f"OCR extracted {len(best_text)} characters from PDF page {i+1}")
+                    else:
+                        logger.warning(f"No text found on PDF page {i+1}")
+                        
+                except Exception as e:
+                    logger.error(f"OCR failed for PDF page {i+1}: {e}")
+                    continue
+            
+            if all_text:
+                combined_text = "\n\n".join(all_text)
+                logger.info(f"OCR extracted {len(combined_text)} total characters from PDF")
+                return combined_text
+            else:
+                logger.warning("OCR failed to extract any text from PDF")
+                return None
+                
+        except Exception as e:
+            logger.error(f"PDF OCR extraction failed: {e}")
+            return None
+    
+    def _extract_from_pdf_traditional(self, file_data: bytes) -> Optional[str]:
+        """Fallback: Extract text from PDF using traditional methods"""
         try:
             # Try PyMuPDF first (faster)
             if PYMUPDF_AVAILABLE:

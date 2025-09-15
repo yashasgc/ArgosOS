@@ -83,32 +83,26 @@ class PostProcessorAgent:
             # Step 2: Extract content using OCR for all documents
             extracted_contents = self._extract_document_contents(documents)
             
-            # Step 3: Generate a direct answer to the query
-            direct_answer = self._generate_direct_answer(query, extracted_contents)
+            # Step 3: One API call to answer the question or decide if further processing is needed
+            processing_result = self._answer_or_do_further_processing(query, extracted_contents)
             
-            # Step 4: Use LLM to find relevant content based on query
-            relevant_content = self._find_relevant_content(query, extracted_contents)
-            
-            # Step 5: Check if additional processing is needed
-            processing_decision = self._decide_additional_processing(query, relevant_content)
-            
-            # Step 6: Perform additional processing if needed
-            if processing_decision['needs_processing']:
+            # Step 4: Perform additional processing if needed
+            if processing_result['needs_processing']:
                 final_result = self._perform_additional_processing(
                     query, 
-                    relevant_content, 
-                    processing_decision['instructions']
+                    processing_result['relevant_content'], 
+                    processing_result['instructions']
                 )
             else:
-                final_result = relevant_content
+                final_result = processing_result['direct_answer']
             
             # Format results with direct answer
-            results['direct_answer'] = direct_answer
+            results['direct_answer'] = processing_result['direct_answer']
             results['processed_documents'] = [{
                 'document_id': doc.id,
                 'title': doc.title,
                 'relevant_content': final_result,
-                'processing_applied': processing_decision['needs_processing']
+                'processing_applied': processing_result['needs_processing']
             } for doc in documents]
             
             results['total_processed'] = len(documents)
@@ -168,48 +162,6 @@ class PostProcessorAgent:
         
         return extracted_contents
     
-    def _generate_direct_answer(self, query: str, extracted_contents: Dict[str, str]) -> str:
-        """Generate a direct answer to the query based on document contents."""
-        if not self.llm_provider.is_available():
-            return "LLM not available for generating direct answer"
-        
-        try:
-            # Combine all content
-            all_content = "\n\n".join([
-                f"Document {doc_id}:\n{content}" 
-                for doc_id, content in extracted_contents.items()
-            ])
-            
-            prompt = f"""
-Based on the following documents, provide a direct and concise answer to the question.
-
-Question: "{query}"
-
-Documents:
-{all_content}
-
-Instructions:
-- Answer the question directly and concisely
-- If the information is not available in the documents, say "Information not found in the documents"
-- If you find partial information, provide what you can find
-- Be specific and factual
-- Use bullet points or numbered lists if appropriate
-- Keep the answer under 200 words
-
-Answer:"""
-
-            response = self.llm_provider.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=300,
-                temperature=0.1
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"Error generating direct answer: {e}")
-            return "Error generating answer"
     
     def _extract_text_from_file(self, file_data: bytes, mime_type: str) -> str:
         """Extract text from file data based on MIME type."""
@@ -236,15 +188,20 @@ Answer:"""
             logger.error(f"Error extracting text from file: {e}")
             return ""
     
-    def _find_relevant_content(self, query: str, extracted_contents: Dict[str, str]) -> str:
-        """Use LLM to find relevant content based on query."""
+    def _answer_or_do_further_processing(self, query: str, extracted_contents: Dict[str, str]) -> Dict[str, Any]:
+        """One API call to answer the question directly or decide if further processing is needed."""
         if not self.llm_provider.is_available():
             # Fallback: simple text matching
             relevant_parts = []
             for doc_id, content in extracted_contents.items():
                 if query.lower() in content.lower():
                     relevant_parts.append(f"Document {doc_id}: {content[:500]}...")
-            return "\n\n".join(relevant_parts)
+            return {
+                'direct_answer': "\n\n".join(relevant_parts),
+                'relevant_content': "\n\n".join(relevant_parts),
+                'needs_processing': False,
+                'instructions': None
+            }
         
         try:
             # Combine all content
@@ -254,99 +211,67 @@ Answer:"""
             ])
             
             prompt = f"""
-Given the following search query and document contents, extract only the most relevant information that directly answers or relates to the query.
+Given the following search query and document contents, provide a direct answer to the question and determine if additional processing is needed.
 
 Search Query: "{query}"
 
 Document Contents:
 {all_content}
 
-Please extract and return only the relevant information that directly relates to the query. Be concise and focused.
+Your task:
+1. Provide a direct, concise answer to the question based on the document contents
+2. Extract the most relevant information that supports your answer
+3. Determine if the answer needs additional processing to be more complete or accurate
+4. If processing is needed, provide specific instructions for what type of processing would be most helpful
 
-Relevant Information:"""
+Additional processing could include any operation that would improve the answer to the query. Be specific about what processing is needed based on the query and content.
 
-            response = self.llm_provider.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000,
-                temperature=0.1
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"Error finding relevant content: {e}")
-            return "Error processing content with LLM"
-    
-    def _decide_additional_processing(self, query: str, relevant_content: str) -> Dict[str, Any]:
-        """Decide if additional processing is needed and what instructions to use."""
-        if not self.llm_provider.is_available():
-            return {
-                'needs_processing': False,
-                'instructions': None
-            }
-        
-        try:
-            prompt = f"""
-Based on the search query and relevant content, determine if additional processing is needed.
-
-Search Query: "{query}"
-
-Relevant Content: "{relevant_content}"
-
-Consider if the content needs:
-- Summarization
-- Analysis
-- Comparison
-- Formatting
-- Translation
-- Or any other specific processing
+Instructions for the direct answer:
+- Answer the question directly and concisely
+- If the information is not available in the documents, say "Information not found in the documents"
+- If you find partial information, provide what you can find
+- Be specific and factual
+- Use bullet points or numbered lists if appropriate
+- Keep the answer under 200 words
 
 Respond with valid JSON format only:
 {{
-    "needs_processing": true,
-    "instructions": "specific instructions for processing if needed"
+    "direct_answer": "direct answer to the question",
+    "relevant_content": "extracted relevant information that supports the answer",
+    "needs_processing": true/false,
+    "instructions": "specific processing instructions if needed, or null if not needed"
 }}
 
-or
-
-{{
-    "needs_processing": false,
-    "instructions": null
-}}
-
-Decision:"""
+Response:"""
 
             response = self.llm_provider.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=200,
+                max_tokens=1500,
                 temperature=0.1
             )
             
-            # Parse JSON response with better error handling
+            # Parse JSON response
             import json
             content = response.choices[0].message.content.strip()
             
             try:
-                # Try to parse as JSON
-                decision = json.loads(content)
+                result = json.loads(content)
                 
                 # Validate required fields
-                if not isinstance(decision, dict):
+                if not isinstance(result, dict):
                     raise ValueError("Response is not a JSON object")
                 
-                if "needs_processing" not in decision:
-                    raise ValueError("Missing 'needs_processing' field")
-                
-                if "instructions" not in decision:
-                    raise ValueError("Missing 'instructions' field")
+                required_fields = ['direct_answer', 'relevant_content', 'needs_processing', 'instructions']
+                for field in required_fields:
+                    if field not in result:
+                        raise ValueError(f"Missing '{field}' field")
                 
                 # Ensure needs_processing is boolean
-                if not isinstance(decision["needs_processing"], bool):
-                    decision["needs_processing"] = bool(decision["needs_processing"])
+                if not isinstance(result["needs_processing"], bool):
+                    result["needs_processing"] = bool(result["needs_processing"])
                 
-                return decision
+                return result
                 
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning(f"Failed to parse JSON response: {e}")
@@ -354,16 +279,21 @@ Decision:"""
                 
                 # Fallback: return safe default
                 return {
+                    'direct_answer': "Error processing content with LLM",
+                    'relevant_content': "Error processing content with LLM",
                     'needs_processing': False,
                     'instructions': None
                 }
             
         except Exception as e:
-            logger.error(f"Error deciding additional processing: {e}")
+            logger.error(f"Error answering question and deciding processing: {e}")
             return {
+                'direct_answer': "Error processing content with LLM",
+                'relevant_content': "Error processing content with LLM",
                 'needs_processing': False,
                 'instructions': None
             }
+    
     
     def _perform_additional_processing(
         self, 

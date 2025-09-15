@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 import json
 
 from app.db.models import Document, Tag
@@ -63,14 +63,14 @@ class DocumentCRUD:
         limit: int = 100
     ) -> List[Document]:
         """Search by title, summary, or tags"""
-        search_query = f"%{query}%"
+        search_query = f"%{query.lower()}%"
         
-        # Search by title, summary, or tags (JSON field)
+        # Search by title, summary, or tags (JSON field) - case insensitive
         results = db.query(Document).filter(
             or_(
-                Document.title.contains(search_query),
-                Document.summary.contains(search_query),
-                Document.tags.contains(search_query)
+                func.lower(Document.title).contains(search_query),
+                func.lower(Document.summary).contains(search_query),
+                func.lower(Document.tags).contains(search_query)
             )
         ).all()
         
