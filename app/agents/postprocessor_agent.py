@@ -128,26 +128,43 @@ class PostProcessorAgent:
             return []
     
     def _extract_document_contents(self, documents: List[Document]) -> Dict[str, str]:
-        """Extract content from documents using OCR."""
+        """Extract content from documents, using summary for images."""
         extracted_contents = {}
         
         for doc in documents:
             try:
-                # Read the file content
-                if doc.storage_path and Path(doc.storage_path).exists():
-                    with open(doc.storage_path, 'rb') as f:
-                        file_data = f.read()
-                    
-                    # Extract text based on MIME type
-                    content = self._extract_text_from_file(file_data, doc.mime_type)
-                    extracted_contents[doc.id] = content
+                # For images, use the summary instead of OCR extraction
+                if doc.mime_type and doc.mime_type.startswith('image/'):
+                    if doc.summary:
+                        extracted_contents[doc.id] = doc.summary
+                        logger.info(f"Using summary for image document {doc.id}")
+                    else:
+                        extracted_contents[doc.id] = f"Image: {doc.title} (no summary available)"
+                        logger.warning(f"No summary available for image document {doc.id}")
                 else:
-                    extracted_contents[doc.id] = ""
-                    logger.warning(f"File not found for document {doc.id}: {doc.storage_path}")
+                    # For non-images, read the file content
+                    if doc.storage_path and Path(doc.storage_path).exists():
+                        with open(doc.storage_path, 'rb') as f:
+                            file_data = f.read()
+                        
+                        # Extract text based on MIME type
+                        content = self._extract_text_from_file(file_data, doc.mime_type)
+                        extracted_contents[doc.id] = content
+                    else:
+                        # Fallback to summary if available
+                        if doc.summary:
+                            extracted_contents[doc.id] = doc.summary
+                        else:
+                            extracted_contents[doc.id] = f"Document: {doc.title} (no content available)"
+                        logger.warning(f"File not found for document {doc.id}: {doc.storage_path}")
                     
             except Exception as e:
                 logger.error(f"Error extracting content from document {doc.id}: {e}")
-                extracted_contents[doc.id] = ""
+                # Fallback to summary if available
+                if doc.summary:
+                    extracted_contents[doc.id] = doc.summary
+                else:
+                    extracted_contents[doc.id] = f"Document: {doc.title} (error extracting content)"
         
         return extracted_contents
     
