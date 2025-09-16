@@ -2,71 +2,237 @@
 
 ## 🏗️ System Overview
 
-ArgosOS is an intelligent document management system that combines modern web technologies with AI-powered analysis. The system consists of a FastAPI backend for document processing and storage, and a React frontend for user interaction.
+ArgosOS is an intelligent document management system that combines modern web technologies with AI-powered analysis and agentic architecture. The system consists of a FastAPI backend with specialized AI agents for document processing, a SQLite database for metadata storage, and a React frontend for user interaction.
+
+### **Agentic Architecture Philosophy**
+
+ArgosOS implements an agentic architecture where specialized AI agents work together to process, analyze, and manage documents. Each agent has a specific role and can communicate with other agents to accomplish complex tasks. This approach provides:
+
+- **Modularity**: Each agent handles a specific aspect of document processing
+- **Scalability**: Agents can be independently optimized and scaled
+- **Flexibility**: New agents can be added without affecting existing functionality
+- **Intelligence**: Each agent can make decisions and adapt to different document types
 
 ### **High-Level Architecture**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                ARGOSOS                                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────┐ │
-│  │   Frontend      │    │    Backend      │    │      Storage            │ │
-│  │   (React)       │◄──►│   (FastAPI)     │◄──►│   (SQLite + Blobs)     │ │
-│  │                 │    │                 │    │                         │ │
-│  │ • File Upload   │    │ • File Process  │    │ • Document Metadata    │ │
-│  │ • Document View │    │ • Text Extract  │    │ • Content Blobs        │ │
-│  │ • AI Search     │    │ • LLM Analysis  │    │ • Search Index         │ │
-│  │ • Delete Files  │    │ • API Endpoints │    │ • File Storage         │ │
-│  └─────────────────┘    └─────────────────┘    └─────────────────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    ARGOSOS                                                │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │   Frontend      │    │    Backend      │    │  AI Agents      │    │      Storage     │ │
+│  │   (React)       │◄──►│   (FastAPI)     │◄──►│   System        │◄──►│   (SQLite +      │ │
+│  │                 │    │                 │    │                 │    │    Blobs)        │ │
+│  │ • File Upload   │    │ • API Endpoints │    │ • Ingest Agent  │    │ • Document       │ │
+│  │ • Document View │    │ • Request       │    │ • Retrieval     │    │   Metadata      │ │
+│  │ • AI Search     │    │   Routing       │    │   Agent         │    │ • Content Blobs │ │
+│  │ • Settings      │    │ • Response      │    │ • Postprocessor │    │ • Search Index  │ │
+│  │ • Electron      │    │   Handling      │    │   Agent         │    │ • File Storage  │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘ │
+│                                                                                             │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### **Agentic System Architecture**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              AI AGENTS ECOSYSTEM                                           │
+├─────────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │  Ingest Agent   │    │ Retrieval Agent │    │Postprocessor    │    │   LLM Provider  │ │
+│  │                 │    │                 │    │    Agent        │    │                 │ │
+│  │ • File Upload   │    │ • Document      │    │ • Content       │    │ • OpenAI API    │ │
+│  │ • Text Extract  │    │   Search        │    │   Analysis      │    │ • Vision API    │ │
+│  │ • Content       │    │ • Tag-based     │    │ • Direct        │    │ • OCR Fallback  │ │
+│  │   Processing    │    │   Filtering     │    │   Answers       │    │ • Text          │ │
+│  │ • Format        │    │ • Relevance     │    │ • Additional    │    │   Processing    │ │
+│  │   Detection     │    │   Scoring       │    │   Processing    │    │                 │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘ │
+│           │                       │                       │                       │         │
+│           └───────────────────────┼───────────────────────┼───────────────────────┘         │
+│                                   │                       │                                 │
+│  ┌─────────────────────────────────┴───────────────────────┴─────────────────────────────┐ │
+│  │                        SQLite Database Layer                                        │ │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │ │
+│  │  │   Documents     │  │      Tags       │  │ Document_Tags   │  │   Audit_Log     │ │ │
+│  │  │     Table       │  │     Table       │  │   Junction      │  │     Table       │ │ │
+│  │  │                 │  │                 │  │     Table       │  │                 │ │ │
+│  │  │ • id (UUID)     │  │ • id (INT)      │  │ • document_id   │  │ • id (INT)      │ │ │
+│  │  │ • content_hash  │  │ • name (TEXT)   │  │ • tag_id        │  │ • timestamp     │ │ │
+│  │  │ • title         │  │ • created_at    │  │ • created_at    │  │ • action        │ │ │
+│  │  │ • mime_type     │  │                 │  │                 │  │ • details       │ │ │
+│  │  │ • size_bytes    │  │                 │  │                 │  │                 │ │ │
+│  │  │ • storage_path  │  │                 │  │                 │  │                 │ │ │
+│  │  │ • summary       │  │                 │  │                 │  │                 │ │ │
+│  │  │ • created_at    │  │                 │  │                 │  │                 │ │ │
+│  │  │ • imported_at   │  │                 │  │                 │  │                 │ │ │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘ │ │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 🤖 AI Agents System
+
+### **Agent Architecture Overview**
+
+ArgosOS implements a multi-agent system where specialized AI agents collaborate to process and analyze documents. Each agent has specific responsibilities and can communicate with other agents to accomplish complex tasks.
+
+### **1. Ingest Agent**
+
+**Purpose**: Handles document ingestion, text extraction, and initial processing.
+
+**Responsibilities**:
+- File upload and validation
+- Text extraction from various formats (PDF, DOCX, images)
+- Content deduplication using SHA-256 hashing
+- Initial document metadata creation
+- Format detection and MIME type identification
+
+**Key Methods**:
+```python
+class IngestAgent:
+    def ingest_file(self, file_data: bytes, filename: str, mime_type: str) -> Document
+    def extract_text_from_file(self, file_data: bytes, mime_type: str) -> str
+    def compute_content_hash(self, file_data: bytes) -> str
+    def detect_file_format(self, file_data: bytes, filename: str) -> str
+```
+
+**Text Extraction Pipeline**:
+- **PDFs**: Uses PyMuPDF (fitz) for direct text extraction, falls back to OCR if needed
+- **DOCX**: Uses python-docx for direct text extraction
+- **Images**: Uses ChatGPT Vision API with OCR fallback (pytesseract)
+- **Text Files**: Direct UTF-8 decoding
+
+### **2. Retrieval Agent**
+
+**Purpose**: Handles document search and retrieval based on user queries.
+
+**Responsibilities**:
+- Query analysis and tag generation
+- Document search using multiple strategies
+- Relevance scoring and ranking
+- Search result optimization
+
+**Key Methods**:
+```python
+class RetrievalAgent:
+    def search_documents(self, query: str, db: Session, limit: int = 20) -> Dict
+    def generate_search_tags(self, query: str) -> List[str]
+    def find_documents_by_tags(self, tags: List[str], db: Session) -> List[Document]
+    def score_document_relevance(self, doc: Document, query: str) -> float
+```
+
+**Search Strategies**:
+1. **Tag-based Search**: Find documents with matching AI-generated tags
+2. **Content Search**: Full-text search through document content
+3. **Title Search**: Search through document titles
+4. **Hybrid Approach**: Combines multiple strategies with relevance scoring
+
+### **3. Postprocessor Agent**
+
+**Purpose**: Processes retrieved documents and generates intelligent responses.
+
+**Responsibilities**:
+- Content analysis and summarization
+- Direct answer generation
+- Additional processing decisions
+- Response formatting and optimization
+
+**Key Methods**:
+```python
+class PostProcessorAgent:
+    def process_documents(self, query: str, document_ids: List[str], db: Session) -> Dict
+    def _answer_or_do_further_processing(self, query: str, extracted_contents: Dict) -> Dict
+    def _perform_additional_processing(self, content: str, instructions: str) -> str
+    def _extract_text_from_file(self, file_data: bytes, mime_type: str) -> str
+```
+
+**Processing Workflow**:
+1. **Content Extraction**: Extract text from retrieved documents
+2. **AI Analysis**: Use LLM to analyze content and generate direct answers
+3. **Processing Decision**: Determine if additional processing is needed
+4. **Response Generation**: Format final response with relevant content
+
+### **4. LLM Provider**
+
+**Purpose**: Provides a unified interface for Large Language Model interactions.
+
+**Responsibilities**:
+- OpenAI API integration
+- Text summarization
+- Tag generation
+- Vision API for image processing
+- Fallback mechanisms when API is unavailable
+
+**Key Methods**:
+```python
+class LLMProvider(ABC):
+    def is_available(self) -> bool
+    def summarize(self, text: str) -> str
+    def generate_tags(self, text: str) -> List[str]
+    def extract_text_from_image(self, image_data: bytes) -> str
+    def answer_question(self, question: str, context: str) -> str
+```
+
+**Supported Models**:
+- **GPT-4**: For text analysis and generation
+- **GPT-4 Vision**: For image analysis and OCR
+- **Fallback**: Local processing when API unavailable
 
 ## 🔄 System Dataflow
 
-### **1. File Upload & Processing Flow**
+### **1. File Upload & Processing Flow (Agentic)**
 
 ```mermaid
 graph TD
     A[User Uploads File] --> B[Frontend Validation]
-    B --> C[Backend Receives File]
-    C --> D[Compute SHA-256 Hash]
-    D --> E{File Exists?}
-    E -->|Yes| F[Return Existing Document]
-    E -->|No| G[Store in Blob Storage]
-    G --> H[Extract Text Content]
-    H --> I{LLM Enabled?}
-    I -->|Yes| J[Generate Summary & Tags]
-    I -->|No| K[Skip AI Analysis]
-    J --> L[Store in Database]
-    K --> L
-    L --> M[Return Document Response]
-    F --> N[Update Frontend]
+    B --> C[FastAPI Backend]
+    C --> D[Ingest Agent]
+    D --> E[Compute SHA-256 Hash]
+    E --> F{File Exists?}
+    F -->|Yes| G[Return Existing Document]
+    F -->|No| H[Store in Blob Storage]
+    H --> I[Extract Text Content]
+    I --> J[LLM Provider]
+    J --> K{LLM Available?}
+    K -->|Yes| L[Generate Summary & Tags]
+    K -->|No| M[Skip AI Analysis]
+    L --> N[Store in SQLite Database]
     M --> N
+    N --> O[Return Document Response]
+    G --> P[Update Frontend]
+    O --> P
 ```
 
-### **2. Search & Retrieval Flow**
+### **2. AI-Powered Search Flow (Agentic)**
 
 ```mermaid
 graph TD
     A[User Search Query] --> B[Frontend API Call]
-    B --> C[Backend Search Handler]
-    C --> D[Query Database]
-    D --> E[Search by Tags]
-    D --> F[Search by Content]
-    D --> G[Search by Title]
-    E --> H[Combine Results]
-    F --> H
-    G --> H
-    H --> I[Deduplicate Results]
-    I --> J[Format Response]
-    J --> K[Return to Frontend]
-    K --> L[Display Results]
+    B --> C[FastAPI Backend]
+    C --> D[Retrieval Agent]
+    D --> E[Generate Search Tags]
+    E --> F[Query SQLite Database]
+    F --> G[Tag-based Search]
+    F --> H[Content Search]
+    F --> I[Title Search]
+    G --> J[Combine Results]
+    H --> J
+    I --> J
+    J --> K[Relevance Scoring]
+    K --> L[Postprocessor Agent]
+    L --> M[Extract Document Content]
+    M --> N[LLM Analysis]
+    N --> O[Generate Direct Answer]
+    O --> P[Format Response]
+    P --> Q[Return to Frontend]
+    Q --> R[Display Results]
 ```
 
-### **3. Document Management Flow**
+### **3. Document Management Flow (Agentic)**
 
 ```mermaid
 graph TD
@@ -96,38 +262,145 @@ graph TD
 
 ## 🗄️ Database Architecture
 
+### **SQLite Database Design**
+
+ArgosOS uses SQLite as its primary database for metadata storage, providing a lightweight, serverless solution that's perfect for desktop applications. The database stores document metadata, tags, and relationships while the actual file content is stored in a content-addressed blob storage system.
+
 ### **Database Schema**
 
 ```sql
--- Documents Table
+-- Documents Table - Core document metadata
 CREATE TABLE documents (
-    id TEXT PRIMARY KEY,                    -- UUID string
-    content_hash TEXT UNIQUE NOT NULL,      -- SHA-256 hash
+    id TEXT PRIMARY KEY,                    -- UUID string (v4)
+    content_hash TEXT UNIQUE NOT NULL,      -- SHA-256 hash for deduplication
     title TEXT NOT NULL,                    -- File name/title
-    mime_type TEXT NOT NULL,                -- MIME type
-    size_bytes INTEGER NOT NULL,            -- File size
+    mime_type TEXT NOT NULL,                -- MIME type (e.g., application/pdf)
+    size_bytes INTEGER NOT NULL,            -- File size in bytes
     storage_path TEXT NOT NULL,             -- Blob storage path
-    summary TEXT,                           -- AI-generated summary
+    summary TEXT,                           -- AI-generated summary (nullable)
     created_at INTEGER NOT NULL,            -- Creation timestamp (epoch ms)
     imported_at INTEGER NOT NULL            -- Import timestamp (epoch ms)
 );
 
--- Tags Table
+-- Tags Table - AI-generated and user tags
 CREATE TABLE tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,   -- Auto-increment ID
-    name TEXT UNIQUE NOT NULL               -- Tag name (lowercase)
+    name TEXT UNIQUE NOT NULL,              -- Tag name (lowercase, normalized)
+    created_at INTEGER NOT NULL             -- Creation timestamp
 );
 
--- Document-Tags Association Table
+-- Document-Tags Junction Table - Many-to-many relationship
 CREATE TABLE document_tags (
     document_id TEXT NOT NULL,              -- Foreign key to documents
     tag_id INTEGER NOT NULL,                -- Foreign key to tags
+    created_at INTEGER NOT NULL,            -- Association timestamp
     PRIMARY KEY (document_id, tag_id),
-    FOREIGN KEY (document_id) REFERENCES documents(id),
-    FOREIGN KEY (tag_id) REFERENCES tags(id)
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 
+-- Audit Log Table - System activity tracking
+CREATE TABLE audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,   -- Auto-increment ID
+    timestamp INTEGER NOT NULL,             -- Event timestamp (epoch ms)
+    action TEXT NOT NULL,                   -- Action performed
+    document_id TEXT,                       -- Related document (nullable)
+    details TEXT,                           -- Additional details (JSON)
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL
+);
 ```
+
+### **Database Relationships**
+
+```
+Documents (1) ──────── (M) Document_Tags (M) ──────── (1) Tags
+    │                                                      │
+    │                                                      │
+    └─── (1) ──────── (M) Audit_Log                       │
+                                                          │
+                    ┌─────────────────────────────────────┘
+                    │
+                    ▼
+                Tag Usage
+            (Document Count)
+```
+
+### **Content-Addressed Storage**
+
+The database works in conjunction with a content-addressed blob storage system:
+
+```
+data/
+├── argos.db              # SQLite database (metadata)
+└── blobs/                # Content-addressed storage
+    ├── 02/               # First 2 chars of SHA-256
+    │   └── [hash].bin    # Actual file content
+    ├── 5f/
+    │   └── 5f986fa4c0eda169d89c588f3d08942edf6e49d07174a7036b1cfb30784db807
+    ├── 72/
+    │   └── 726df8bcc21cb319dde031e10a3ab40ee5ce4979cef01451a9be341fec8e8153
+    └── ...
+```
+
+**Benefits of Content-Addressed Storage**:
+- **Deduplication**: Identical files share the same storage location
+- **Integrity**: SHA-256 hash ensures file integrity
+- **Efficiency**: No duplicate storage of identical content
+- **Scalability**: Easy to add new storage backends
+
+### **How the System Works**
+
+#### **1. Document Ingestion Process**
+
+When a user uploads a document, the following process occurs:
+
+1. **Frontend Validation**: React frontend validates file type and size
+2. **API Request**: File sent to FastAPI backend via multipart/form-data
+3. **Ingest Agent Activation**: IngestAgent processes the uploaded file
+4. **Content Hashing**: SHA-256 hash computed for deduplication
+5. **Duplicate Check**: Database queried for existing content
+6. **Text Extraction**: Appropriate extraction method based on file type
+7. **AI Processing**: LLM Provider generates summary and tags (if available)
+8. **Database Storage**: Document metadata stored in SQLite
+9. **Blob Storage**: File content stored in content-addressed storage
+10. **Response**: Document metadata returned to frontend
+
+#### **2. Search and Retrieval Process**
+
+When a user performs a search:
+
+1. **Query Input**: User enters search query in React frontend
+2. **API Call**: Query sent to FastAPI backend
+3. **Retrieval Agent**: RetrievalAgent analyzes the query
+4. **Tag Generation**: AI generates relevant search tags
+5. **Database Query**: Multiple search strategies executed:
+   - Tag-based search using generated tags
+   - Content search through document summaries
+   - Title search for exact matches
+6. **Relevance Scoring**: Documents ranked by relevance
+7. **Postprocessor Agent**: Retrieved documents processed
+8. **Content Analysis**: LLM analyzes document content
+9. **Answer Generation**: Direct answers generated when possible
+10. **Response Formatting**: Results formatted and returned
+
+#### **3. Agent Communication Flow**
+
+```
+User Query → FastAPI → Retrieval Agent → SQLite Database
+                ↓
+            Postprocessor Agent ← LLM Provider
+                ↓
+            Response Generation → Frontend Display
+```
+
+#### **4. Error Handling and Fallbacks**
+
+The system includes multiple fallback mechanisms:
+
+- **LLM Unavailable**: System continues with basic functionality
+- **Text Extraction Fails**: OCR fallback for images
+- **Database Errors**: Graceful degradation with error messages
+- **File Processing Errors**: Detailed error reporting to user
 
 ### **Database Indexes**
 
