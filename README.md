@@ -6,7 +6,7 @@ A modern desktop application for intelligent document management with AI-powered
 
 - **Multi-format Support**: PDF, DOCX, TXT, MD, and image files (JPG, PNG, GIF, BMP, TIFF, WebP)
 - **Advanced Text Extraction**: 
-  - **PDFs**: OCR-based extraction using pdf2image + Tesseract
+  - **PDFs**: Direct text extraction using PyMuPDF with OCR fallback (no Poppler dependency)
   - **DOCX**: Direct text extraction using python-docx
   - **Images**: ChatGPT Vision API with OCR fallback
 - **AI Analysis**: OpenAI-powered summarization and tagging
@@ -19,6 +19,22 @@ A modern desktop application for intelligent document management with AI-powered
 - **Distribution**: Ready-to-distribute DMG, EXE, and AppImage packages
 
 ## Recent Updates
+
+### v1.3.0 - Electron App Stability & Enhanced Search
+- ✅ **Fixed Electron Startup**: Resolved `ELECTRON_RUN_AS_NODE` environment variable issue
+- ✅ **Updated Database Schema**: Tags table now stores `document_ids` as JSON for better performance
+- ✅ **Improved PDF Processing**: Updated to use PyMuPDF with OCR fallback (no Poppler dependency)
+- ✅ **Enhanced Search Experience**: Search clears automatically when switching to AI search tab
+- ✅ **Fixed API Integration**: Resolved Tag object attribute errors and improved API key loading
+- ✅ **Better Error Handling**: Enhanced logging and error recovery throughout the application
+- ✅ **Code Quality**: Fixed all linter errors and improved code organization
+
+### v1.2.0 - Advanced Text Processing
+- ✅ **OCR for PDFs**: PDF files now use OCR for better text extraction
+- ✅ **Direct DOCX Processing**: DOCX files use direct text extraction
+- ✅ **Vision API for Images**: Images use ChatGPT Vision API with OCR fallback
+- ✅ **Comprehensive Documentation**: Added detailed architecture and deployment guides
+- ✅ **Enhanced README**: Complete setup, troubleshooting, and contribution guidelines
 
 ### v1.1.0 - Complete File Management
 - ✅ **Persistent File Storage**: Files now saved to `data/blobs/` directory
@@ -185,7 +201,8 @@ ArgosOS is a three-tier desktop application with AI-powered document processing:
 #### 4. **Text Extraction Pipeline**
 ```
 PDF Files:
-  PDF → pdf2image → Images → Tesseract OCR → Text → ChatGPT LLM → Processed Text
+  PDF → PyMuPDF (Direct Text) → Text → ChatGPT LLM → Processed Text
+  (Fallback: PyMuPDF → Images → Tesseract OCR → Text)
 
 DOCX Files:
   DOCX → python-docx → Direct Text Extraction → ChatGPT LLM → Processed Text
@@ -281,10 +298,10 @@ docker run -p 8000:8000 -v $(pwd)/data:/app/data argos-os
 #### System Dependencies
 ```bash
 # macOS
-brew install tesseract poppler
+brew install tesseract
 
 # Ubuntu/Debian
-sudo apt-get install tesseract-ocr poppler-utils
+sudo apt-get install tesseract-ocr
 
 # Windows
 # Download from: https://github.com/UB-Mannheim/tesseract/wiki
@@ -293,7 +310,7 @@ sudo apt-get install tesseract-ocr poppler-utils
 #### Python Dependencies (Managed by Poetry)
 - FastAPI, SQLAlchemy, Pydantic
 - OpenAI, Tesseract, PyMuPDF
-- pdf2image, python-docx
+- python-docx, pdfminer
 - See `pyproject.toml` for complete list
 
 #### Node.js Dependencies (Managed by npm)
@@ -353,6 +370,21 @@ rm data/argos.db
 - Verify file type is supported
 - Ensure sufficient disk space
 
+#### 7. **Electron App Issues**
+```bash
+# If Electron app shows "app object undefined" error
+unset ELECTRON_RUN_AS_NODE
+./start-electron.sh
+
+# If Electron can't connect to backend
+# Check that backend is running on localhost:8000
+curl http://localhost:8000/health
+
+# If Vite dev server connection fails
+# Check that frontend is running on localhost:5173
+curl http://localhost:5173
+```
+
 ### Debug Mode
 
 ```bash
@@ -405,6 +437,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - **Documentation**: [Wiki](https://github.com/yashasgc/ArgosOS/wiki)
 
 ## Changelog
+
+### v1.3.0 - Electron App Stability & Enhanced Search (Latest)
+- ✅ **Fixed Electron Startup**: Resolved `ELECTRON_RUN_AS_NODE` environment variable issue preventing app from launching
+- ✅ **Updated Database Schema**: Tags table now stores `document_ids` as JSON for better performance and data integrity
+- ✅ **Improved PDF Processing**: Updated to use PyMuPDF with OCR fallback, removing Poppler dependency
+- ✅ **Enhanced Search Experience**: Search clears automatically when switching to AI search tab for better UX
+- ✅ **Fixed API Integration**: Resolved Tag object attribute errors and improved API key loading in agents
+- ✅ **Better Error Handling**: Enhanced logging and error recovery throughout the application
+- ✅ **Code Quality**: Fixed all linter errors and improved code organization
 
 ### v1.2.0 - Advanced Text Processing
 - ✅ **OCR for PDFs**: PDF files now use OCR for better text extraction
