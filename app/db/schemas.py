@@ -5,7 +5,8 @@ import json
 
 
 class TagBase(BaseModel):
-    name: str
+    tag: str
+    document_ids: List[str] = []
 
 
 class TagCreate(TagBase):
@@ -17,6 +18,17 @@ class Tag(TagBase):
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Custom from_orm to handle JSON document_ids field"""
+        data = obj.__dict__.copy()
+        if 'document_ids' in data and isinstance(data['document_ids'], str):
+            try:
+                data['document_ids'] = json.loads(data['document_ids'])
+            except (json.JSONDecodeError, TypeError):
+                data['document_ids'] = []
+        return cls(**data)
 
 
 

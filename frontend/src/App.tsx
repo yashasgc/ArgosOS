@@ -646,7 +646,15 @@ function App() {
             {tabs.map(({ id, label, icon: Icon, count }) => (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => {
+                  setActiveTab(id);
+                  // Clear search when switching to search tab
+                  if (id === 'search') {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setDirectAnswer(null);
+                  }
+                }}
                 className={`relative px-6 py-4 font-medium text-sm transition-all duration-200 whitespace-nowrap ${
                   activeTab === id
                     ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'

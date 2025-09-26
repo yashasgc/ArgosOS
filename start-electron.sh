@@ -2,6 +2,9 @@
 
 # ArgosOS Electron Development Startup Script
 
+# Unset ELECTRON_RUN_AS_NODE to ensure Electron runs properly
+unset ELECTRON_RUN_AS_NODE
+
 echo "🚀 Starting ArgosOS Electron App..."
 
 # Check if we're in the right directory
@@ -62,6 +65,7 @@ echo "⏳ Waiting for backend to start..."
 sleep 5
 
 # Check if backend is running
+echo "🔍 Checking backend health..."
 if ! curl -s http://localhost:8000/health > /dev/null; then
     echo "❌ Backend failed to start"
     kill $BACKEND_PID 2>/dev/null
@@ -72,7 +76,11 @@ echo "✅ Backend is running on http://localhost:8000"
 
 # Start the Electron app
 echo "🖥️  Starting Electron app..."
+echo "📁 Current directory: $(pwd)"
+echo "📁 Changing to frontend directory..."
 cd frontend
+echo "📁 Now in directory: $(pwd)"
+echo "🚀 Running npm run electron:dev..."
 npm run electron:dev
 
 # Cleanup function

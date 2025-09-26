@@ -13,7 +13,7 @@ export const useElectron = () => {
     if (!isElectron || (options.data instanceof FormData)) {
       // Fallback to regular fetch for web
       try {
-        const response = await fetch(`http://localhost:8000${options.endpoint}?t=${Date.now()}`, {
+        const response = await fetch(`http://localhost:8000${options.endpoint}${options.endpoint.includes('?') ? '&' : '?'}t=${Date.now()}`, {
           method: options.method,
           headers: options.data instanceof FormData ? {} : {
             'Content-Type': 'application/json',

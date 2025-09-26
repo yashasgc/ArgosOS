@@ -198,6 +198,8 @@ def get_retrieval_agent():
         llm_provider = OpenAIProvider()
         llm_provider.api_key = openai_key
         llm_provider.client = OpenAI(api_key=openai_key)
+        # Ensure the provider knows it's available
+        llm_provider._available = True
     else:
         from app.llm.provider import DisabledLLMProvider
         llm_provider = DisabledLLMProvider()
@@ -381,7 +383,7 @@ async def get_tags(db: Session = Depends(get_db)):
         
         return {
             "success": True,
-            "tags": [{"id": tag.id, "name": tag.name} for tag in tags]
+            "tags": [{"id": tag.id, "tag": tag.tag, "document_ids": json.loads(tag.document_ids) if tag.document_ids else []} for tag in tags]
         }
     except Exception as e:
         return {

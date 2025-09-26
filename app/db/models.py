@@ -41,17 +41,20 @@ class Document(Base):
 
 
 class Tag(Base):
-    """Tags table - stores unique tag names"""
+    """Tags table - stores unique tag names with associated document IDs"""
     __tablename__ = "tags"
     
     # Primary key - auto-increment integer
     id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
     
     # Tag name (stored in lowercase for consistency)
-    name: Mapped[str] = Column(String, unique=True, nullable=False, index=True)
+    tag: Mapped[str] = Column(String, unique=True, nullable=False, index=True)
+    
+    # Document IDs as JSON string
+    document_ids: Mapped[str] = Column(Text, nullable=False, default="[]")
     
     def __repr__(self):
-        return f"<Tag(id={self.id}, name='{self.name}')>"
+        return f"<Tag(id={self.id}, tag='{self.tag}', document_ids='{self.document_ids}')>"
 
 
 

@@ -131,7 +131,7 @@ class RetrievalAgent:
         """
         try:
             tags = TagCRUD.get_all(db)
-            return [tag.name for tag in tags]
+            return [tag.tag for tag in tags]
         except Exception as e:
             logger.error(f"Error getting available tags: {e}")
             return []
@@ -272,6 +272,7 @@ Relevant tags:"""
         """
         try:
             from app.db.crud import DocumentCRUD
+            import json
             
             if not relevant_tags:
                 # If no relevant tags, return empty results instead of all documents
@@ -281,11 +282,25 @@ Relevant tags:"""
             # Search for documents that contain any of the relevant tags
             documents = []
             for tag in relevant_tags:
-                # Search for documents containing this tag in their JSON tags field
-                tag_docs = db.query(Document).filter(
-                    Document.tags.contains(f'"{tag}"')
-                ).limit(limit).all()
-                documents.extend(tag_docs)
+                # First, get the tag from the tags table to find document IDs
+                tag_obj = TagCRUD.get_by_tag(db, tag)
+                if tag_obj and tag_obj.document_ids:
+                    try:
+                        # Parse the document IDs from JSON
+                        doc_ids = json.loads(tag_obj.document_ids) if isinstance(tag_obj.document_ids, str) else tag_obj.document_ids
+                        if isinstance(doc_ids, list):
+                            # Get documents by their IDs
+                            for doc_id in doc_ids:
+                                doc = DocumentCRUD.get_by_id(db, doc_id)
+                                if doc:
+                                    documents.append(doc)
+                    except (json.JSONDecodeError, TypeError) as e:
+                        logger.warning(f"Could not parse document_ids for tag {tag}: {e}")
+                        # Fallback: search in documents.tags JSON field
+                        tag_docs = db.query(Document).filter(
+                            Document.tags.contains(f'"{tag}"')
+                        ).limit(limit).all()
+                        documents.extend(tag_docs)
             
             # Remove duplicates
             seen_ids = set()

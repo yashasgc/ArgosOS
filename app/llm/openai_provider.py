@@ -184,7 +184,7 @@ class OpenAIProvider(LLMProvider):
             
             Common queries:
             - Find documents by title: SELECT * FROM documents WHERE title LIKE '%keyword%'
-            - Find documents by tags: SELECT d.* FROM documents d JOIN document_tags dt ON d.id = dt.document_id JOIN tags t ON dt.tag_id = t.id WHERE t.name = 'tag_name'
+            - Find documents by tags: SELECT d.* FROM documents d JOIN document_tags dt ON d.id = dt.document_id JOIN tags t ON dt.tag_id = t.id WHERE t.tag = 'tag_name'
             - Find documents by date range: SELECT * FROM documents WHERE imported_at BETWEEN start_timestamp AND end_timestamp
             - Find documents by MIME type: SELECT * FROM documents WHERE mime_type = 'application/pdf'
             """
@@ -226,6 +226,6 @@ class OpenAIProvider(LLMProvider):
             elif "count" in query_lower:
                 return "SELECT COUNT(*) as total_documents FROM documents"
             elif "tags" in query_lower:
-                return "SELECT t.name, COUNT(dt.document_id) as document_count FROM tags t LEFT JOIN document_tags dt ON t.id = dt.tag_id GROUP BY t.id, t.name ORDER BY document_count DESC"
+                return "SELECT t.tag, COUNT(dt.document_id) as document_count FROM tags t LEFT JOIN document_tags dt ON t.id = dt.tag_id GROUP BY t.id, t.tag ORDER BY document_count DESC"
             else:
                 return "SELECT * FROM documents WHERE title LIKE '%{}%' OR summary LIKE '%{}%'".format(query, query)

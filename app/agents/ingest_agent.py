@@ -173,9 +173,10 @@ class IngestAgent:
                     if tag_names:
                         logger.info(f"Generated tags: {tag_names}")
                         
-                        # Add tags to tags table (get or create)
+                        # Add tags to tags table and associate with document
                         for tag_name in tag_names:
-                            TagCRUD.get_or_create(db, tag_name)
+                            # Add document ID to each tag's document_ids list
+                            TagCRUD.add_document_to_tag(db, tag_name, document.id)
                         
                         # Update document with tags as JSON
                         document.tags = json.dumps(tag_names)

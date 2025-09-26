@@ -16,7 +16,7 @@ except ImportError:
     TESSERACT_AVAILABLE = False
 
 try:
-    import PyMuPDF as fitz
+    import fitz  # PyMuPDF
     PYMUPDF_AVAILABLE = True
 except ImportError:
     PYMUPDF_AVAILABLE = False
@@ -187,30 +187,79 @@ class TextExtractor:
             return None
     
     def _extract_from_pdf(self, file_data: bytes) -> Optional[str]:
-        """Extract text from PDF using OCR (convert to images first)"""
-        if not TESSERACT_AVAILABLE:
-            logger.warning("Tesseract not available for PDF OCR")
+        """Extract text from PDF using direct text extraction (no OCR)"""
+        try:
+            # Try PyMuPDF first (fastest and most reliable)
+            if PYMUPDF_AVAILABLE:
+                try:
+                    logger.info("Extracting text from PDF using PyMuPDF")
+                    doc = fitz.open(stream=file_data, filetype="pdf")
+                    text = ""
+                    for page_num in range(len(doc)):
+                        page = doc[page_num]
+                        page_text = page.get_text()
+                        if page_text.strip():
+                            text += f"Page {page_num + 1}:\n{page_text.strip()}\n\n"
+                            logger.info(f"Extracted {len(page_text)} characters from page {page_num + 1}")
+                    
+                    doc.close()
+                    
+                    if text.strip():
+                        logger.info(f"PyMuPDF extracted {len(text)} total characters from PDF")
+                        return text.strip()
+                    else:
+                        logger.warning("PyMuPDF found no text in PDF")
+                except Exception as e:
+                    logger.warning(f"PyMuPDF extraction failed: {e}")
+            
+            # Fallback to pdfminer
+            if PDFMINER_AVAILABLE:
+                try:
+                    logger.info("Extracting text from PDF using pdfminer")
+                    text = pdfminer_extract(BytesIO(file_data))
+                    if text.strip():
+                        logger.info(f"pdfminer extracted {len(text)} characters from PDF")
+                        return text.strip()
+                    else:
+                        logger.warning("pdfminer found no text in PDF")
+                except Exception as e:
+                    logger.warning(f"pdfminer extraction failed: {e}")
+            
+            # If no text found with direct extraction, try OCR as last resort
+            logger.warning("No text found with direct extraction, trying OCR as last resort")
+            return self._extract_from_pdf_ocr_fallback(file_data)
+            
+        except Exception as e:
+            logger.error(f"PDF text extraction failed: {e}")
+            return None
+    
+    def _extract_from_pdf_ocr_fallback(self, file_data: bytes) -> Optional[str]:
+        """Fallback: Extract text from PDF using OCR (for image-based PDFs)"""
+        if not TESSERACT_AVAILABLE or not PYMUPDF_AVAILABLE:
+            logger.warning("OCR fallback not available - missing Tesseract or PyMuPDF")
             return None
         
         try:
-            # Try to import pdf2image
-            try:
-                from pdf2image import convert_from_bytes
-            except ImportError:
-                logger.warning("pdf2image not available, falling back to traditional PDF extraction")
-                return self._extract_from_pdf_traditional(file_data)
+            logger.info("Using OCR fallback for PDF (likely image-based PDF)")
+            doc = fitz.open(stream=file_data, filetype="pdf")
             
-            # Convert PDF pages to images
-            images = convert_from_bytes(file_data, dpi=300)
-            
-            if not images:
+            if len(doc) == 0:
                 logger.warning("No pages found in PDF")
+                doc.close()
                 return None
             
             # Extract text from each page using OCR
             all_text = []
-            for i, image in enumerate(images):
+            for i in range(len(doc)):
                 try:
+                    page = doc[i]
+                    # Convert page to image
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
+                    img_data = pix.tobytes("png")
+                    
+                    # Convert to PIL Image for OCR
+                    image = Image.open(BytesIO(img_data))
+                    
                     # Convert to grayscale for better OCR
                     if image.mode != 'L':
                         image = image.convert('L')
@@ -243,6 +292,8 @@ class TextExtractor:
                     logger.error(f"OCR failed for PDF page {i+1}: {e}")
                     continue
             
+            doc.close()
+            
             if all_text:
                 combined_text = "\n\n".join(all_text)
                 logger.info(f"OCR extracted {len(combined_text)} total characters from PDF")
@@ -253,40 +304,6 @@ class TextExtractor:
                 
         except Exception as e:
             logger.error(f"PDF OCR extraction failed: {e}")
-            return None
-    
-    def _extract_from_pdf_traditional(self, file_data: bytes) -> Optional[str]:
-        """Fallback: Extract text from PDF using traditional methods"""
-        try:
-            # Try PyMuPDF first (faster)
-            if PYMUPDF_AVAILABLE:
-                try:
-                    doc = fitz.open(stream=file_data, filetype="pdf")
-                    text = ""
-                    for page in doc:
-                        text += page.get_text()
-                    doc.close()
-                    if text.strip():
-                        logger.info(f"PyMuPDF extracted {len(text)} characters from PDF")
-                        return text.strip()
-                except Exception as e:
-                    logger.warning(f"PyMuPDF extraction failed: {e}")
-            
-            # Fallback to pdfminer
-            if PDFMINER_AVAILABLE:
-                try:
-                    text = pdfminer_extract(BytesIO(file_data))
-                    if text.strip():
-                        logger.info(f"pdfminer extracted {len(text)} characters from PDF")
-                        return text.strip()
-                except Exception as e:
-                    logger.warning(f"pdfminer extraction failed: {e}")
-            
-            logger.error("No PDF extraction method available")
-            return None
-            
-        except Exception as e:
-            logger.error(f"PDF extraction failed: {e}")
             return None
     
     def _extract_from_docx(self, file_data: bytes) -> Optional[str]:
