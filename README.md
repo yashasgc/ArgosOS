@@ -6,7 +6,7 @@ A modern desktop application for intelligent document management with AI-powered
 
 - **Multi-format Support**: PDF, DOCX, TXT, MD, and image files (JPG, PNG, GIF, BMP, TIFF, WebP)
 - **Advanced Text Extraction**: 
-  - **PDFs**: Direct text extraction using PyMuPDF with OCR fallback (no Poppler dependency)
+  - **PDFs**: OCR-based extraction using pdf2image + Tesseract
   - **DOCX**: Direct text extraction using python-docx
   - **Images**: ChatGPT Vision API with OCR fallback
 - **AI Analysis**: OpenAI-powered summarization and tagging
@@ -19,22 +19,6 @@ A modern desktop application for intelligent document management with AI-powered
 - **Distribution**: Ready-to-distribute DMG, EXE, and AppImage packages
 
 ## Recent Updates
-
-### v1.3.0 - Electron App Stability & Enhanced Search
-- ✅ **Fixed Electron Startup**: Resolved `ELECTRON_RUN_AS_NODE` environment variable issue
-- ✅ **Updated Database Schema**: Tags table now stores `document_ids` as JSON for better performance
-- ✅ **Improved PDF Processing**: Updated to use PyMuPDF with OCR fallback (no Poppler dependency)
-- ✅ **Enhanced Search Experience**: Search clears automatically when switching to AI search tab
-- ✅ **Fixed API Integration**: Resolved Tag object attribute errors and improved API key loading
-- ✅ **Better Error Handling**: Enhanced logging and error recovery throughout the application
-- ✅ **Code Quality**: Fixed all linter errors and improved code organization
-
-### v1.2.0 - Advanced Text Processing
-- ✅ **OCR for PDFs**: PDF files now use OCR for better text extraction
-- ✅ **Direct DOCX Processing**: DOCX files use direct text extraction
-- ✅ **Vision API for Images**: Images use ChatGPT Vision API with OCR fallback
-- ✅ **Comprehensive Documentation**: Added detailed architecture and deployment guides
-- ✅ **Enhanced README**: Complete setup, troubleshooting, and contribution guidelines
 
 ### v1.1.0 - Complete File Management
 - ✅ **Persistent File Storage**: Files now saved to `data/blobs/` directory
@@ -122,16 +106,29 @@ poetry run pytest
 
 ## Distribution
 
-### Create Installers
+### Create Multi-Platform Installers
 ```bash
-# Build Electron app
-./build-with-poetry.sh
+# Build for all platforms (macOS, Windows, Linux)
+./build-all-platforms.sh
 
+# Build specific platforms only
+cd frontend
+npm run electron:dist  # All platforms
+npx electron-builder --win --publish=never  # Windows only
+npx electron-builder --linux --publish=never  # Linux only
+npx electron-builder --mac --publish=never  # macOS only
+```
+
+### Alternative Distribution Methods
+```bash
 # Create Docker distribution
 python3 create-docker-app.py
 
 # Create standalone executable
 python3 create-standalone-app.py
+
+# Build with Poetry (development)
+./build-with-poetry.sh
 ```
 
 ### Security Features
@@ -201,8 +198,7 @@ ArgosOS is a three-tier desktop application with AI-powered document processing:
 #### 4. **Text Extraction Pipeline**
 ```
 PDF Files:
-  PDF → PyMuPDF (Direct Text) → Text → ChatGPT LLM → Processed Text
-  (Fallback: PyMuPDF → Images → Tesseract OCR → Text)
+  PDF → pdf2image → Images → Tesseract OCR → Text → ChatGPT LLM → Processed Text
 
 DOCX Files:
   DOCX → python-docx → Direct Text Extraction → ChatGPT LLM → Processed Text
@@ -235,7 +231,7 @@ Image Files:
 ### Option 1: Pre-built Releases (Recommended)
 1. Go to [Releases](https://github.com/yashasgc/ArgosOS/releases)
 2. Download the appropriate package for your OS:
-   - **macOS**: `ArgosOS-1.0.0.dmg`
+   - **macOS**: `ArgosOS-1.0.0-arm64.dmg` (Apple Silicon) or `ArgosOS-1.0.0-x64.dmg` (Intel)
    - **Windows**: `ArgosOS-1.0.0.exe`
    - **Linux**: `ArgosOS-1.0.0.AppImage`
 3. Install and run the application
@@ -260,10 +256,10 @@ cd frontend && npm install && cd ..
 
 ### Production Build
 ```bash
-# 1. Build Electron app
-./build-with-poetry.sh
+# 1. Build multi-platform Electron apps
+./build-all-platforms.sh
 
-# 2. Create distribution packages
+# 2. Create alternative distribution packages
 python3 create-docker-app.py      # Docker container
 python3 create-standalone-app.py  # Standalone executable
 ```
@@ -280,11 +276,12 @@ docker run -p 8000:8000 -v $(pwd)/data:/app/data argos-os
 ### System Requirements
 
 #### Minimum Requirements
-- **OS**: Windows 10+, macOS 10.15+, Ubuntu 18.04+
+- **OS**: Windows 10+, macOS 10.12+, Ubuntu 18.04+
+- **Architecture**: x64 (Intel/AMD) or ARM64 (Apple Silicon)
 - **RAM**: 4GB
 - **Storage**: 1GB free space
-- **Python**: 3.11+ (for development)
-- **Node.js**: 18+ (for development)
+- **Python**: 3.11+ (for development only)
+- **Node.js**: 18+ (for development only)
 
 #### Recommended Requirements
 - **OS**: Latest version of Windows/macOS/Linux
@@ -298,10 +295,10 @@ docker run -p 8000:8000 -v $(pwd)/data:/app/data argos-os
 #### System Dependencies
 ```bash
 # macOS
-brew install tesseract
+brew install tesseract poppler
 
 # Ubuntu/Debian
-sudo apt-get install tesseract-ocr
+sudo apt-get install tesseract-ocr poppler-utils
 
 # Windows
 # Download from: https://github.com/UB-Mannheim/tesseract/wiki
@@ -310,7 +307,7 @@ sudo apt-get install tesseract-ocr
 #### Python Dependencies (Managed by Poetry)
 - FastAPI, SQLAlchemy, Pydantic
 - OpenAI, Tesseract, PyMuPDF
-- python-docx, pdfminer
+- pdf2image, python-docx
 - See `pyproject.toml` for complete list
 
 #### Node.js Dependencies (Managed by npm)
@@ -370,21 +367,6 @@ rm data/argos.db
 - Verify file type is supported
 - Ensure sufficient disk space
 
-#### 7. **Electron App Issues**
-```bash
-# If Electron app shows "app object undefined" error
-unset ELECTRON_RUN_AS_NODE
-./start-electron.sh
-
-# If Electron can't connect to backend
-# Check that backend is running on localhost:8000
-curl http://localhost:8000/health
-
-# If Vite dev server connection fails
-# Check that frontend is running on localhost:5173
-curl http://localhost:5173
-```
-
 ### Debug Mode
 
 ```bash
@@ -437,15 +419,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - **Documentation**: [Wiki](https://github.com/yashasgc/ArgosOS/wiki)
 
 ## Changelog
-
-### v1.3.0 - Electron App Stability & Enhanced Search (Latest)
-- ✅ **Fixed Electron Startup**: Resolved `ELECTRON_RUN_AS_NODE` environment variable issue preventing app from launching
-- ✅ **Updated Database Schema**: Tags table now stores `document_ids` as JSON for better performance and data integrity
-- ✅ **Improved PDF Processing**: Updated to use PyMuPDF with OCR fallback, removing Poppler dependency
-- ✅ **Enhanced Search Experience**: Search clears automatically when switching to AI search tab for better UX
-- ✅ **Fixed API Integration**: Resolved Tag object attribute errors and improved API key loading in agents
-- ✅ **Better Error Handling**: Enhanced logging and error recovery throughout the application
-- ✅ **Code Quality**: Fixed all linter errors and improved code organization
 
 ### v1.2.0 - Advanced Text Processing
 - ✅ **OCR for PDFs**: PDF files now use OCR for better text extraction

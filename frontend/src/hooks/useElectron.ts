@@ -52,7 +52,7 @@ export const useElectron = () => {
       // Trigger new document action
     };
 
-    const handleOpenDocument = (_event: any, filePath: string) => {
+    const handleOpenDocument = (_event: any, _filePath: string) => {
       // Handle file open
     };
 

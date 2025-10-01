@@ -73,4 +73,4 @@ data/blobs/
 data/*.db
 
 # Config
-config.env
+config.envdistribution/

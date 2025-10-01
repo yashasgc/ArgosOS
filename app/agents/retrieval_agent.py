@@ -193,7 +193,7 @@ class RetrievalAgent:
         try:
             # Create a prompt for the LLM to select relevant tags
             prompt = f"""
-Given the following search query and available tags, select the most relevant tags that match the query.
+Given the following search query and available tags, select the relevant tags that match the query.
 
 Search Query: "{query}"
 
@@ -201,7 +201,7 @@ Available Tags: {', '.join(available_tags)}
 
 Return your response as a JSON array of tag names. If no tags are relevant, return an empty array.
 
-Format: ["tag1", "tag2", "tag3"]
+The Format should be like this. Do not overfitt for just three tags. Add more tags as needed: ["tag1", "tag2", "tag3"] 
 
 Relevant tags:"""
 
