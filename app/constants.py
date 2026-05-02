@@ -33,9 +33,10 @@ HTTP_500_INTERNAL_SERVER_ERROR = 500
 # CORS origins
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "http://localhost:5173", 
+    "http://localhost:5173",
     "http://localhost:5174",
-    "http://localhost:5175"
+    "http://localhost:5175",
+    "null",  # Electron packaged app loads from file://, which sends Origin: null
 ]
 
 # Text encodings to try

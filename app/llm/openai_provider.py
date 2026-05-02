@@ -177,16 +177,19 @@ class OpenAIProvider(LLMProvider):
             # Default schema information for the documents database
             default_schema = """
             Database Schema:
-            - documents table: id (TEXT), title (TEXT), summary (TEXT), mime_type (TEXT), 
-              size_bytes (INTEGER), created_at (INTEGER), imported_at (INTEGER)
-            - tags table: id (INTEGER), name (TEXT)
-            - document_tags table: document_id (TEXT), tag_id (INTEGER)
-            
+            - documents table: id (TEXT PK), content_hash (TEXT), title (TEXT),
+              mime_type (TEXT), size_bytes (INTEGER), storage_path (TEXT),
+              summary (TEXT), tags (TEXT — JSON array of tag strings),
+              created_at (INTEGER epoch ms), imported_at (INTEGER epoch ms)
+            - tags table: id (INTEGER PK), tag (TEXT UNIQUE),
+              document_ids (TEXT — JSON array of document id strings)
+
             Common queries:
             - Find documents by title: SELECT * FROM documents WHERE title LIKE '%keyword%'
-            - Find documents by tags: SELECT d.* FROM documents d JOIN document_tags dt ON d.id = dt.document_id JOIN tags t ON dt.tag_id = t.id WHERE t.tag = 'tag_name'
-            - Find documents by date range: SELECT * FROM documents WHERE imported_at BETWEEN start_timestamp AND end_timestamp
+            - Find documents by tag: SELECT * FROM documents WHERE tags LIKE '%"tag_name"%'
+            - Find documents by date range: SELECT * FROM documents WHERE imported_at BETWEEN start_ms AND end_ms
             - Find documents by MIME type: SELECT * FROM documents WHERE mime_type = 'application/pdf'
+            - List all tags: SELECT tag FROM tags ORDER BY tag
             """
             
             schema = schema_info if schema_info else default_schema
@@ -226,6 +229,6 @@ class OpenAIProvider(LLMProvider):
             elif "count" in query_lower:
                 return "SELECT COUNT(*) as total_documents FROM documents"
             elif "tags" in query_lower:
-                return "SELECT t.tag, COUNT(dt.document_id) as document_count FROM tags t LEFT JOIN document_tags dt ON t.id = dt.tag_id GROUP BY t.id, t.tag ORDER BY document_count DESC"
+                return "SELECT tag FROM tags ORDER BY tag"
             else:
                 return "SELECT * FROM documents WHERE title LIKE '%{}%' OR summary LIKE '%{}%'".format(query, query)

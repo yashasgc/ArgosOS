@@ -1,4 +1,5 @@
 import logging
+import urllib.parse
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,7 +7,8 @@ from cryptography.fernet import Fernet
 import json
 from pathlib import Path
 from sqlalchemy.orm import Session
-from app.db.engine import get_db
+from app.config import settings
+from app.db.engine import get_db, init_database
 from app.agents.ingest_agent import IngestAgent
 from app.agents.retrieval_agent import RetrievalAgent
 from app.agents.postprocessor_agent import PostProcessorAgent
@@ -21,7 +23,16 @@ from app.constants import (
 
 logger = logging.getLogger(__name__)
 
+# Initialise DB tables on startup (create_all is idempotent — safe to call every run)
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    init_database()
+    yield
+
 app = FastAPI(
+    lifespan=lifespan,
     title="ArgosOS Backend",
     description="Intelligent file analysis and document management backend",
     version="1.0.0"
@@ -132,12 +143,13 @@ async def store_api_key(request: ApiKeyRequest):
             )
     except ValidationError as e:
         return ApiKeyResponse(
-            message=f"Validation error: {str(e)}",
+            message=f"Invalid API key: {str(e)}",
             encrypted=False
         )
     except Exception as e:
+        logger.exception("Failed to store API key")
         return ApiKeyResponse(
-            message=f"Failed to store API key: {str(e)}",
+            message="Failed to store API key",
             encrypted=False
         )
 
@@ -154,7 +166,8 @@ async def get_api_key_status():
             "services": list(api_keys.keys()) if api_keys else []
         }
     except Exception as e:
-        return {"configured": False, "encrypted": False, "error": f"Failed to check API key status: {str(e)}"}
+        logger.exception("Failed to check API key status")
+        return {"configured": False, "encrypted": False, "error": "Failed to check API key status"}
 
 @app.delete("/v1/api-key")
 async def clear_api_key():
@@ -168,7 +181,8 @@ async def clear_api_key():
         else:
             return {"message": "No OpenAI API key found"}
     except Exception as e:
-        return {"message": f"Failed to clear API key: {str(e)}"}
+        logger.exception("Failed to clear API key")
+        return {"message": "Failed to clear API key"}
 
 # REMOVED: /v1/api-key/decrypt endpoint - SECURITY RISK
 # API keys should never be exposed via HTTP endpoints
@@ -198,8 +212,6 @@ def get_retrieval_agent():
         llm_provider = OpenAIProvider()
         llm_provider.api_key = openai_key
         llm_provider.client = OpenAI(api_key=openai_key)
-        # Ensure the provider knows it's available
-        llm_provider._available = True
     else:
         from app.llm.provider import DisabledLLMProvider
         llm_provider = DisabledLLMProvider()
@@ -282,9 +294,10 @@ async def upload_file(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Upload failed")
         return {
             "success": False,
-            "error": f"Upload failed: {str(e)}"
+            "error": "Upload failed"
         }
 
 # Search endpoint
@@ -333,9 +346,10 @@ async def search_documents(
             "results": results
         }
     except Exception as e:
+        logger.exception("Search failed")
         return {
             "success": False,
-            "error": f"Search failed: {str(e)}"
+            "error": "Search failed"
         }
 
 # Get all documents
@@ -360,7 +374,6 @@ async def get_documents(
                     "mime_type": doc.mime_type,
                     "size_bytes": doc.size_bytes,
                     "created_at": doc.created_at,
-                    "storage_path": doc.storage_path,
                     "tags": json.loads(doc.tags) if doc.tags else []
                 }
                 for doc in documents
@@ -368,9 +381,10 @@ async def get_documents(
             "total": len(documents)
         }
     except Exception as e:
+        logger.exception("Failed to get documents")
         return {
             "success": False,
-            "error": f"Failed to get documents: {str(e)}"
+            "error": "Failed to get documents"
         }
 
 
@@ -386,9 +400,10 @@ async def get_tags(db: Session = Depends(get_db)):
             "tags": [{"id": tag.id, "tag": tag.tag, "document_ids": json.loads(tag.document_ids) if tag.document_ids else []} for tag in tags]
         }
     except Exception as e:
+        logger.exception("Failed to fetch tags")
         return {
             "success": False,
-            "error": f"Failed to fetch tags: {str(e)}"
+            "error": "Failed to fetch tags"
         }
 
 
@@ -414,9 +429,10 @@ async def get_document(
                 "error": "Document not found"
             }
     except Exception as e:
+        logger.exception("Failed to get document")
         return {
             "success": False,
-            "error": f"Failed to get document: {str(e)}"
+            "error": "Failed to get document"
         }
 
 # Process documents endpoint
@@ -437,9 +453,10 @@ async def process_documents(
             "results": results
         }
     except Exception as e:
+        logger.exception("Processing failed")
         return {
             "success": False,
-            "error": f"Processing failed: {str(e)}"
+            "error": "Processing failed"
         }
 
 # Get document content endpoint
@@ -457,11 +474,16 @@ async def get_document_content(
         if not document:
             raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document not found")
         
-        # Read file content
+        # Read file content — guard against path traversal
         if not document.storage_path or not Path(document.storage_path).exists():
             raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
-        
-        with open(document.storage_path, 'rb') as f:
+
+        blob_path = Path(document.storage_path).resolve()
+        if not str(blob_path).startswith(str(settings.blobs_dir.resolve())):
+            logger.warning("Rejected content read with out-of-bounds storage_path: %s", document.storage_path)
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
+
+        with open(blob_path, 'rb') as f:
             content = f.read()
         
         # Return content based on file type
@@ -528,9 +550,10 @@ async def get_document_content(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Failed to get document content")
         return {
             "success": False,
-            "error": f"Failed to get document content: {str(e)}"
+            "error": "Failed to get document content"
         }
 
 # Download document endpoint
@@ -552,18 +575,28 @@ async def download_document(
         # Check if file exists
         if not document.storage_path or not Path(document.storage_path).exists():
             raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
-        
-        # Return file for opening (not downloading)
+
+        # Guard against path traversal: storage_path must be inside blobs_dir
+        blob_path = Path(document.storage_path).resolve()
+        if not str(blob_path).startswith(str(settings.blobs_dir.resolve())):
+            logger.warning("Rejected download with out-of-bounds storage_path: %s", document.storage_path)
+            raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Document file not found")
+
+        # RFC 6266 / RFC 8187 encoded filename to prevent header injection
+        safe_filename = urllib.parse.quote(document.title, safe="")
+        content_disposition = f"inline; filename*=UTF-8''{safe_filename}"
+
         return FileResponse(
-            path=document.storage_path,
+            path=str(blob_path),
             media_type=document.mime_type,
-            headers={"Content-Disposition": f"inline; filename=\"{document.title}\""}
+            headers={"Content-Disposition": content_disposition}
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to download document: {str(e)}")
+        logger.exception("Failed to download document")
+        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to download document")
 
 # Delete document endpoint
 @app.delete("/api/documents/{document_id}")
@@ -588,9 +621,10 @@ async def delete_document(
                 "error": "Document not found or deletion failed"
             }
     except Exception as e:
+        logger.exception("Failed to delete document")
         return {
             "success": False,
-            "error": f"Failed to delete document: {str(e)}"
+            "error": "Failed to delete document"
         }
 
 # Health check endpoint

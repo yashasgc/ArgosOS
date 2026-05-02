@@ -1,13 +1,12 @@
 """Initial migration
 
 Revision ID: 001
-Revises: 
+Revises:
 Create Date: 2024-01-01 00:00:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
-import sqlalchemy_utils
 
 # revision identifiers, used by Alembic.
 revision = '001'
@@ -17,7 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create documents table
     op.create_table('documents',
         sa.Column('id', sa.String(), nullable=False),
         sa.Column('content_hash', sa.String(), nullable=False),
@@ -26,36 +24,31 @@ def upgrade() -> None:
         sa.Column('size_bytes', sa.Integer(), nullable=False),
         sa.Column('storage_path', sa.String(), nullable=False),
         sa.Column('summary', sa.Text(), nullable=True),
+        sa.Column('tags', sa.Text(), nullable=False, server_default='[]'),
         sa.Column('created_at', sa.Integer(), nullable=False),
         sa.Column('imported_at', sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_documents_content_hash', 'documents', ['content_hash'], unique=True)
-    
-    # Create tags table
+    op.create_index('idx_documents_created_at', 'documents', ['created_at'])
+    op.create_index('idx_documents_imported_at', 'documents', ['imported_at'])
+    op.create_index('idx_documents_mime_type', 'documents', ['mime_type'])
+
+    # Tags store a JSON list of document IDs directly (denormalised for simplicity)
     op.create_table('tags',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(), nullable=False),
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True),
+        sa.Column('tag', sa.String(), nullable=False),
+        sa.Column('document_ids', sa.Text(), nullable=False, server_default='[]'),
         sa.PrimaryKeyConstraint('id')
     )
-    op.create_index('idx_tags_name', 'tags', ['name'], unique=True)
-    
-    # Create document_tags association table
-    op.create_table('document_tags',
-        sa.Column('document_id', sa.String(), nullable=False),
-        sa.Column('tag_id', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['document_id'], ['documents.id'], ),
-        sa.ForeignKeyConstraint(['tag_id'], ['tags.id'], ),
-        sa.PrimaryKeyConstraint('document_id', 'tag_id')
-    )
+    op.create_index('idx_tags_tag', 'tags', ['tag'], unique=True)
 
 
 def downgrade() -> None:
-    op.drop_table('document_tags')
-    op.drop_index('idx_tags_name', table_name='tags')
+    op.drop_index('idx_tags_tag', table_name='tags')
     op.drop_table('tags')
+    op.drop_index('idx_documents_mime_type', table_name='documents')
+    op.drop_index('idx_documents_imported_at', table_name='documents')
+    op.drop_index('idx_documents_created_at', table_name='documents')
     op.drop_index('idx_documents_content_hash', table_name='documents')
     op.drop_table('documents')
-
-
-

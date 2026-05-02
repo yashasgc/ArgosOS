@@ -8,23 +8,19 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron": "electron .",
-    "electron:dev": "concurrently \"npm run dev\" \"sleep 5 && electron .\"",
-    "electron:build": "npm run build && electron-builder",
-    "electron:dist": "npm run build && electron-builder --publish=never"
+    "electron": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "electron:dev": "concurrently \"npm run dev\" \"sleep 5 && env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "electron:build": "npm run build && env -u ELECTRON_RUN_AS_NODE electron-builder",
+    "electron:dist": "npm run build && env -u ELECTRON_RUN_AS_NODE electron-builder --publish=never"
   },
   "dependencies": {
     "axios": "^1.11.0",
     "clsx": "^2.1.1",
-    "electron-reload": "^2.0.0-alpha.1",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.6.2",
     "lucide-react": "^0.541.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-router-dom": "^7.8.2",
-    "tailwind-merge": "^3.3.1",
-    "zustand": "^5.0.8"
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
@@ -34,7 +30,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^8.2.2",
-    "electron": "^28.0.0",
+    "electron": "^41.4.0",
     "electron-builder": "^24.6.4",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -44,9 +40,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
-    "vite": "^7.1.2",
-    "vite-plugin-electron": "^0.29.0",
-    "wait-on": "^7.2.0"
+    "vite": "^7.1.2"
   },
   "build": {
     "appId": "com.argos.os",
@@ -57,14 +51,65 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/.cache/**/*",
+      "!node_modules/electron-builder/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../app",
+        "to": "app",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../data",
+        "to": "data",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../standalone-python-env",
+        "to": "standalone-python-env",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../pyproject.toml",
+        "to": "pyproject.toml"
+      },
+      {
+        "from": "../poetry.lock",
+        "to": "poetry.lock"
+      },
+      {
+        "from": "../start-standalone.py",
+        "to": "start-standalone.py"
+      },
+      {
+        "from": "../alembic.ini",
+        "to": "alembic.ini"
+      },
+      {
+        "from": "../alembic",
+        "to": "alembic",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -72,7 +117,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -80,7 +127,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }

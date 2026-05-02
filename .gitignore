@@ -1,25 +1,9 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
-MANIFEST
 
 # Virtual environments
 .env
@@ -27,8 +11,7 @@ MANIFEST
 env/
 venv/
 ENV/
-env.bak/
-venv.bak/
+standalone-python-env/
 
 # Poetry
 poetry.lock
@@ -42,17 +25,23 @@ poetry.lock
 
 # OS
 .DS_Store
-.DS_Store?
 ._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Database
+# Database & runtime data
 *.db
 *.sqlite
 *.sqlite3
+data/blobs/
+data/*.db
+argos.db
+temp_uploads/
+
+# Config secrets (never commit these)
+config/api_keys.enc
+config/secret.key
+config/*.enc
+config/*.key
 
 # Logs
 *.log
@@ -62,15 +51,14 @@ logs/
 node_modules/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 
-# Frontend build
+# Build artifacts
 frontend/dist/
 frontend/dist-electron/
+dist/
 
-# Data directory
-data/blobs/
-data/*.db
+# Test cache
+.pytest_cache/
 
-# Config
-config.envdistribution/
+# Distribution — binaries are too large for GitHub (>100 MB); published as GitHub Releases
+distribution/

@@ -1,436 +1,231 @@
 # ArgosOS
 
-A modern desktop application for intelligent document management with AI-powered analysis. Built with Python (FastAPI), React (TypeScript), and Electron.
+An Electron desktop app for intelligent document management. Upload PDFs, DOCX, images, and text files — ArgosOS extracts content, generates AI summaries and tags, and lets you search your library with natural language.
+
+Built with Python (FastAPI), React (TypeScript), and Electron.
+
+---
+
+## Download
+
+Pre-built installers are on the [Releases](../../releases) page:
+
+| Platform | File |
+|---|---|
+| macOS Apple Silicon | `ArgosOS-1.0.0-arm64.dmg` |
+| macOS Intel | `ArgosOS-1.0.0.dmg` |
+| Windows | built by CI (see below) |
+| Linux | built by CI (see below) |
+
+On macOS, open the DMG, drag ArgosOS to Applications, and launch it. macOS may warn about an unsigned app — go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+Windows and Linux builds are produced by the GitHub Actions workflow on every version tag push.
+
+---
 
 ## Features
 
-- **Multi-format Support**: PDF, DOCX, TXT, MD, and image files (JPG, PNG, GIF, BMP, TIFF, WebP)
-- **Advanced Text Extraction**: 
-  - **PDFs**: OCR-based extraction using pdf2image + Tesseract
-  - **DOCX**: Direct text extraction using python-docx
-  - **Images**: ChatGPT Vision API with OCR fallback
-- **AI Analysis**: OpenAI-powered summarization and tagging
-- **Persistent Storage**: Files saved to disk with content-addressed storage
-- **Content Deduplication**: SHA-256 based deduplication
-- **Native Desktop App**: Cross-platform Electron application
-- **Smart Search**: Natural language document search with AI-powered postprocessing
-- **Complete CRUD**: Upload, view, search, and delete documents
-- **Security**: Encrypted API key storage, input validation, and SQL injection protection
-- **Distribution**: Ready-to-distribute DMG, EXE, and AppImage packages
+- **Multi-format ingestion** — PDF, DOCX, TXT, MD, PNG, JPG, GIF, BMP, TIFF, WebP
+- **Text extraction** — PyMuPDF for PDFs, python-docx for DOCX, pytesseract OCR for images
+- **AI analysis** — OpenAI-powered summarisation, tag generation, and natural language search
+- **Deduplication** — SHA-256 content hash prevents duplicate uploads
+- **Encrypted key storage** — OpenAI API key is stored with Fernet symmetric encryption; never written in plaintext
+- **Offline-first** — all document data is local (SQLite + `data/blobs/`)
 
-## Recent Updates
-
-### v1.1.0 - Complete File Management
-- ✅ **Persistent File Storage**: Files now saved to `data/blobs/` directory
-- ✅ **Complete Delete**: Delete removes both file and database record
-- ✅ **Real File Paths**: Database stores actual file locations
-- ✅ **Code Cleanup**: Removed dead code and unused functions
-- ✅ **Improved Search**: Search returns real file paths for postprocessor integration
-- ✅ **Better Error Handling**: Enhanced validation and error messages
-
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Poetry
-- Tesseract OCR
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd ArgosOS
-   ```
-
-2. **Install dependencies**
-   ```bash
-   # Backend dependencies
-   poetry install
-   
-   # Frontend dependencies
-   cd frontend
-   npm install
-   cd ..
-   ```
-
-3. **Run the application**
-   ```bash
-   ./start-electron.sh
-   ```
-
-## Project Structure
-
-```
-ArgosOS/
-├── app/                    # Python backend
-│   ├── agents/            # AI agents (ingest, retrieval, postprocess)
-│   ├── db/                # Database models and CRUD
-│   ├── llm/               # LLM providers (OpenAI)
-│   ├── config.py          # Configuration
-│   └── main.py            # FastAPI application
-├── frontend/              # React + Electron frontend
-│   ├── src/               # React components
-│   ├── electron/          # Electron main process
-│   └── package.json       # Frontend dependencies
-├── tests/                 # Test suite
-├── data/                  # Database and file storage
-├── pyproject.toml         # Python dependencies (Poetry)
-└── start-electron.sh      # Startup script
-```
-
-## Usage
-
-1. **Upload Documents**: Drag and drop files or use the native file picker
-2. **Configure AI**: Add your OpenAI API key in Settings for AI features
-3. **Search**: Use natural language to find documents
-4. **Manage**: View, organize, and manage your document library
+---
 
 ## Development
 
-```bash
-# Backend development
-poetry run python start.py
+### Prerequisites
 
-# Frontend development
-cd frontend
-npm run dev
+| Tool | Minimum version |
+|---|---|
+| Python | 3.11 |
+| Node.js | 18 |
+| Poetry | any recent |
+| Tesseract OCR | any |
 
-# Run tests
-poetry run pytest
-
-# Build for distribution
-./build-with-poetry.sh
-```
-
-## Distribution
-
-### Create Multi-Platform Installers
-```bash
-# Build for all platforms (macOS, Windows, Linux)
-./build-all-platforms.sh
-
-# Build specific platforms only
-cd frontend
-npm run electron:dist  # All platforms
-npx electron-builder --win --publish=never  # Windows only
-npx electron-builder --linux --publish=never  # Linux only
-npx electron-builder --mac --publish=never  # macOS only
-```
-
-### Alternative Distribution Methods
-```bash
-# Create Docker distribution
-python3 create-docker-app.py
-
-# Create standalone executable
-python3 create-standalone-app.py
-
-# Build with Poetry (development)
-./build-with-poetry.sh
-```
-
-### Security Features
-- ✅ Encrypted API key storage
-- ✅ Input validation and sanitization
-- ✅ SQL injection protection
-- ✅ CORS configuration
-- ✅ File type and size validation
-- ✅ Path traversal protection
-
-## Architecture
-
-### System Overview
-ArgosOS is a three-tier desktop application with AI-powered document processing:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Electron Desktop App                     │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │   React UI      │  │   File Upload   │  │   Search    │  │
-│  │   (TypeScript)  │  │   Management    │  │   Results   │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ Ingest      │  │ Retrieval   │  │ PostProcessor       │  │
-│  │ Agent       │  │ Agent       │  │ Agent               │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ Text        │  │ LLM         │  │ Database            │  │
-│  │ Extractor   │  │ Provider    │  │ (SQLite)            │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    External Services                        │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ OpenAI      │  │ Tesseract   │  │ File System         │  │
-│  │ (GPT-4)     │  │ (OCR)       │  │ (data/blobs/)       │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Core Components
-
-#### 1. **Frontend (Electron + React)**
-- **Technology**: React 18 + TypeScript + Tailwind CSS
-- **Desktop**: Electron for native desktop experience
-- **Features**: File upload, document management, search interface
-- **State Management**: React hooks and context
-
-#### 2. **Backend (FastAPI)**
-- **Technology**: Python 3.11+ with FastAPI
-- **Architecture**: RESTful API with async support
-- **Security**: CORS, input validation, encrypted storage
-- **Port**: 8000 (configurable)
-
-#### 3. **AI Agents**
-- **IngestAgent**: File processing, text extraction, AI analysis
-- **RetrievalAgent**: Document search and tag-based filtering
-- **PostProcessorAgent**: Advanced query processing and result enhancement
-
-#### 4. **Text Extraction Pipeline**
-```
-PDF Files:
-  PDF → pdf2image → Images → Tesseract OCR → Text → ChatGPT LLM → Processed Text
-
-DOCX Files:
-  DOCX → python-docx → Direct Text Extraction → ChatGPT LLM → Processed Text
-
-Image Files:
-  Image → ChatGPT Vision API → Text (with OCR fallback)
-```
-
-#### 5. **Database (SQLite)**
-- **Tables**: Documents, Tags
-- **Features**: Content deduplication, full-text search
-- **Migrations**: Alembic for schema management
-- **Storage**: `data/argos.db`
-
-#### 6. **File Storage**
-- **Location**: `data/blobs/` directory
-- **Naming**: Content-addressed (SHA-256 hash)
-- **Deduplication**: Automatic duplicate detection
-- **Persistence**: Files survive app restarts
-
-### Data Flow
-
-1. **Upload**: User uploads file → Electron → FastAPI → IngestAgent
-2. **Processing**: File → TextExtractor → AI Analysis → Database Storage
-3. **Search**: Query → RetrievalAgent → PostProcessorAgent → Results
-4. **Display**: Results → React UI → User Interface
-
-## How to Download
-
-### Option 1: Pre-built Releases (Recommended)
-1. Go to [Releases](https://github.com/yashasgc/ArgosOS/releases)
-2. Download the appropriate package for your OS:
-   - **macOS**: `ArgosOS-1.0.0-arm64.dmg` (Apple Silicon) or `ArgosOS-1.0.0-x64.dmg` (Intel)
-   - **Windows**: `ArgosOS-1.0.0.exe`
-   - **Linux**: `ArgosOS-1.0.0.AppImage`
-3. Install and run the application
-
-### Option 2: Clone from Source
-```bash
-git clone https://github.com/yashasgc/ArgosOS.git
-cd ArgosOS
-```
-
-## How to Deploy
-
-### Local Development
-```bash
-# 1. Install dependencies
-poetry install
-cd frontend && npm install && cd ..
-
-# 2. Run the application
-./start-electron.sh
-```
-
-### Production Build
-```bash
-# 1. Build multi-platform Electron apps
-./build-all-platforms.sh
-
-# 2. Create alternative distribution packages
-python3 create-docker-app.py      # Docker container
-python3 create-standalone-app.py  # Standalone executable
-```
-
-### Docker Deployment
-```bash
-# 1. Build Docker image
-docker build -t argos-os .
-
-# 2. Run container
-docker run -p 8000:8000 -v $(pwd)/data:/app/data argos-os
-```
-
-### System Requirements
-
-#### Minimum Requirements
-- **OS**: Windows 10+, macOS 10.12+, Ubuntu 18.04+
-- **Architecture**: x64 (Intel/AMD) or ARM64 (Apple Silicon)
-- **RAM**: 4GB
-- **Storage**: 1GB free space
-- **Python**: 3.11+ (for development only)
-- **Node.js**: 18+ (for development only)
-
-#### Recommended Requirements
-- **OS**: Latest version of Windows/macOS/Linux
-- **RAM**: 8GB+
-- **Storage**: 5GB+ free space
-- **CPU**: Multi-core processor
-- **Internet**: For AI features (OpenAI API)
-
-### Dependencies
-
-#### System Dependencies
-```bash
-# macOS
-brew install tesseract poppler
-
-# Ubuntu/Debian
-sudo apt-get install tesseract-ocr poppler-utils
-
-# Windows
-# Download from: https://github.com/UB-Mannheim/tesseract/wiki
-```
-
-#### Python Dependencies (Managed by Poetry)
-- FastAPI, SQLAlchemy, Pydantic
-- OpenAI, Tesseract, PyMuPDF
-- pdf2image, python-docx
-- See `pyproject.toml` for complete list
-
-#### Node.js Dependencies (Managed by npm)
-- React, TypeScript, Tailwind CSS
-- Electron, Vite
-- See `frontend/package.json` for complete list
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. **Port Already in Use**
-```bash
-# Kill processes using port 8000
-pkill -f uvicorn
-# Or use a different port
-export PORT=8001
-```
-
-#### 2. **Tesseract Not Found**
+Install Tesseract:
 ```bash
 # macOS
 brew install tesseract
 
-# Ubuntu/Debian
+# Ubuntu / Debian
 sudo apt-get install tesseract-ocr
 
-# Windows
-# Download from: https://github.com/UB-Mannheim/tesseract/wiki
+# Windows — download from https://github.com/UB-Mannheim/tesseract/wiki
 ```
 
-#### 3. **Poetry Not Found**
-```bash
-# Install Poetry
-curl -sSL https://install.python-poetry.org | python3 -
-# Add to PATH
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-#### 4. **Node.js Version Issues**
-```bash
-# Use Node Version Manager
-nvm install 18
-nvm use 18
-```
-
-#### 5. **Database Issues**
-```bash
-# Reset database
-rm data/argos.db
-# Restart application
-./start-electron.sh
-```
-
-#### 6. **File Upload Issues**
-- Check file size limits (default: 100MB)
-- Verify file type is supported
-- Ensure sufficient disk space
-
-### Debug Mode
+### Run in development mode
 
 ```bash
-# Enable debug logging
-export LOG_LEVEL=DEBUG
-./start-electron.sh
+git clone <repo-url>
+cd ArgosOS
+
+# Install Python dependencies
+poetry install
+
+# Install Node dependencies
+cd frontend && npm install && cd ..
+
+# Start everything (backend + Vite + Electron)
+./dev.sh
 ```
 
-### Performance Optimization
+`dev.sh` runs `npm run electron:dev` which starts the Vite dev server and Electron together. The Electron window shows a loading screen while the backend starts, then loads the React UI.
 
-1. **Increase OCR Performance**:
-   - Use SSD storage
-   - Increase RAM allocation
-   - Adjust Tesseract PSM modes
+### Run the backend standalone
 
-2. **Reduce Memory Usage**:
-   - Process files in smaller batches
-   - Clear cache regularly
-   - Monitor file sizes
+```bash
+poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
 
-3. **Improve Search Speed**:
-   - Index frequently searched terms
-   - Use database optimization
-   - Implement result caching
+API docs available at `http://localhost:8000/docs`.
+
+---
+
+## Build for distribution
+
+```bash
+./build.sh
+```
+
+This script:
+1. Checks prerequisites (Node.js 18+, Python 3.11+)
+2. Builds a fresh standalone Python virtual environment (`standalone-python-env/`) with all dependencies
+3. Builds the React frontend with TypeScript + Vite
+4. Packages with electron-builder into DMG (macOS)
+5. Copies installers + SHA-256 checksums to `distribution/`
+
+Windows EXE and Linux AppImage require building on those platforms. The GitHub Actions workflow (`.github/workflows/build.yml`) handles all three platforms — trigger it by pushing a `v*` tag:
+
+```bash
+git tag v1.0.1
+git push --tags
+```
+
+---
+
+## Project structure
+
+```
+ArgosOS/
+├── app/                     # Python FastAPI backend
+│   ├── agents/              # IngestAgent, RetrievalAgent, PostProcessorAgent
+│   ├── db/                  # SQLAlchemy models, CRUD, Alembic migrations
+│   ├── llm/                 # OpenAI provider
+│   ├── utils/               # File validation, sanitisation
+│   ├── config.py            # pydantic-settings configuration
+│   ├── constants.py         # CORS origins, limits, HTTP codes
+│   └── main.py              # FastAPI app, all endpoints
+├── alembic/                 # Database migrations
+├── frontend/
+│   ├── src/                 # React + TypeScript UI
+│   ├── electron/
+│   │   ├── main.js          # Electron main process
+│   │   └── preload.js       # Context bridge (renderer ↔ main)
+│   └── package.json         # Build config + electron-builder settings
+├── distribution/            # Built installers (committed for direct download)
+├── data/                    # Runtime — gitignored
+│   ├── argos.db             # SQLite database
+│   └── blobs/               # Stored document files (content-addressed)
+├── build.sh                 # Full build script
+├── dev.sh                   # Development startup
+└── start-standalone.py      # Backend entry point for packaged app
+```
+
+---
+
+## Architecture
+
+```
+Electron (main process)
+  └─ spawns Python backend (standalone-python-env or poetry in dev)
+  └─ loads React UI (Vite dev server or built dist/)
+  └─ IPC bridge (preload.js) — proxies API calls, file dialogs, key-value store
+
+FastAPI backend  :8000
+  ├─ POST /api/files/upload    → IngestAgent → extract + summarise + tag → SQLite
+  ├─ GET  /api/search          → RetrievalAgent → tag match + text search → PostProcessorAgent
+  ├─ GET  /api/documents       → list all documents
+  ├─ GET  /api/documents/{id}/content   → return extracted text or base64
+  ├─ GET  /api/documents/{id}/download  → stream raw file
+  ├─ DELETE /api/documents/{id}
+  ├─ POST /v1/api-key          → encrypt and store OpenAI key
+  ├─ GET  /v1/api-key/status   → check if key is configured
+  ├─ DELETE /v1/api-key
+  └─ GET  /health
+
+SQLite + blobs/
+  ├─ documents  — metadata, summary, tags (JSON), storage_path
+  └─ tags       — tag name, document_ids (JSON)
+```
+
+**Text extraction pipeline:**
+- **PDF** — PyMuPDF direct extraction, falls back to pytesseract OCR on images
+- **DOCX** — python-docx direct extraction
+- **Images** — OpenAI Vision API if key is set, pytesseract OCR fallback
+- **TXT / MD** — read directly
+
+---
+
+## Configuration
+
+The backend reads configuration from environment variables (or a `.env` file). All have defaults so no configuration is required to run:
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./argos.db` | SQLite connection string |
+| `DATA_DIR` | `./data` | Directory for database and blobs |
+| `BLOBS_DIR` | `./data/blobs` | Uploaded file storage |
+| `PORT` | `8000` | Backend port |
+| `DEBUG` | `false` | SQLAlchemy query logging |
+
+The packaged Electron app sets `DATA_DIR` / `BLOBS_DIR` / `DATABASE_URL` to `app.getPath('userData')` so data is stored in the OS-standard user data directory, not the read-only app bundle.
+
+---
+
+## Security
+
+- API keys are encrypted at rest with Fernet (symmetric encryption); the encryption key is stored separately in `config/secret.key` (gitignored)
+- File paths from the database are validated to be inside `blobs_dir` before being read or served
+- `Content-Disposition` filename is RFC 8187 encoded to prevent header injection
+- The Electron subprocess receives a filtered environment — variables matching `API_KEY`, `SECRET`, `TOKEN`, `PASSWORD`, or `CREDENTIAL` are stripped before spawning Python
+- CORS is restricted to localhost origins + `null` (required for Electron's `file://` origin in packaged mode)
+- No authentication is required — the backend binds to `localhost:8000` only and is not reachable from the network
+
+---
+
+## Troubleshooting
+
+**Backend won't start / "no such table" error**  
+Delete `data/argos.db` and restart — the app recreates the schema automatically on startup.
+
+**Port 8000 already in use**
+```bash
+pkill -f uvicorn
+```
+
+**Tesseract not found**  
+Install it (see Prerequisites above) and ensure it's in `$PATH`. On macOS with Homebrew it's at `/opt/homebrew/bin/tesseract`.
+
+**macOS "app is damaged" / quarantine warning**  
+The DMG is unsigned. Run: `xattr -dr com.apple.quarantine /Applications/ArgosOS.app`
+
+**Electron window shows blank / "Backend Failed to Start"**  
+Check that Python and all dependencies are installed. In dev mode run `poetry run uvicorn app.main:app` manually to see the error.
+
+---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork and create a branch
+2. Make changes with tests where applicable
+3. `poetry run pytest` — run the test suite
+4. Open a PR
 
-### Development Guidelines
-
-- Follow PEP 8 for Python code
-- Use TypeScript for frontend code
-- Write tests for new features
-- Update documentation
-- Test on multiple platforms
+---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/yashasgc/ArgosOS/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yashasgc/ArgosOS/discussions)
-- **Documentation**: [Wiki](https://github.com/yashasgc/ArgosOS/wiki)
-
-## Changelog
-
-### v1.2.0 - Advanced Text Processing
-- ✅ **OCR for PDFs**: PDF files now use OCR for better text extraction
-- ✅ **Direct DOCX Processing**: DOCX files use direct text extraction
-- ✅ **Vision API for Images**: Images use ChatGPT Vision API with OCR fallback
-- ✅ **Comprehensive Documentation**: Added detailed architecture and deployment guides
-- ✅ **Enhanced README**: Complete setup, troubleshooting, and contribution guidelines
-
-### v1.1.0 - Complete File Management
-- ✅ **Persistent File Storage**: Files now saved to `data/blobs/` directory
-- ✅ **Complete Delete**: Delete removes both file and database record
-- ✅ **Real File Paths**: Database stores actual file locations
-- ✅ **Code Cleanup**: Removed dead code and unused functions
-- ✅ **Improved Search**: Search returns real file paths for postprocessor integration
-- ✅ **Better Error Handling**: Enhanced validation and error messages
+MIT — see [LICENSE](LICENSE).

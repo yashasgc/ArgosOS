@@ -2,7 +2,8 @@ export interface ElectronAPI {
   // File operations
   selectFile: () => Promise<string | null>;
   selectFolder: () => Promise<string | null>;
-  openFileData: (data: Uint8Array, filename: string) => Promise<void>;
+  openFile: (fileUrl: string) => Promise<{ success: boolean; error?: string }>;
+  openFileData: (data: Uint8Array, filename: string) => Promise<{ success: boolean; error?: string }>;
   
   // Dialog operations
   showMessageBox: (options: {
