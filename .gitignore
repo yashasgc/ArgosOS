@@ -56,6 +56,7 @@ yarn-debug.log*
 frontend/dist/
 frontend/dist-electron/
 dist/
+docs/media/frames/*-concat.txt
 
 # Test cache
 .pytest_cache/

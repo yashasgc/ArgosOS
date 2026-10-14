@@ -20,6 +20,12 @@ ArgosOS also provides a local MCP server with document search/read tools and
 read-only-by-default IMAP email ingestion. See the
 [MCP and email setup guide](docs/MCP_AND_EMAIL.md).
 
+## Video demos
+
+- [MCP tools walkthrough](docs/media/argos-mcp-tools.mp4)
+- [Email ingestion walkthrough](docs/media/argos-email-ingestion.mp4)
+- [Animated previews and explanations](docs/DEMOS.md)
+
 ---
 
 ## Download
