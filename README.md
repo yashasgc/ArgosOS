@@ -4,6 +4,18 @@ An Electron desktop app for intelligent document management. Upload PDFs, DOCX, 
 
 Built with Python (FastAPI), React (TypeScript), and Electron.
 
+## How it works
+
+![ArgosOS workflow and processing modes](docs/assets/argos-how-it-works.png)
+
+ArgosOS extracts document text locally, stores files and metadata on the user's
+computer, and makes the resulting library searchable. The current AI-enhanced
+path uses OpenAI. A fully local Tesseract + Ollama/Gemma mode is illustrated as
+a proposed option and is not implemented in the current build.
+
+See [processing modes and terminology](docs/ARGOS_MODES.md) for the standalone
+desktop packaging, current cloud-enhanced mode, and proposed fully local mode.
+
 ---
 
 ## Download
