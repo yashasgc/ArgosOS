@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     
     # OCR settings
     tesseract_cmd: Optional[str] = None
+
+    # Email ingestion (generic IMAP; credentials are never returned by the API)
+    email_imap_host: Optional[str] = None
+    email_imap_port: int = 993
+    email_imap_username: Optional[str] = None
+    email_imap_password: Optional[str] = None
+    email_imap_folder: str = "INBOX"
+    email_imap_use_ssl: bool = True
     
     # API settings
     host: str = "0.0.0.0"

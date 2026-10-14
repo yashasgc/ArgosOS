@@ -13,6 +13,7 @@ from app.agents.ingest_agent import IngestAgent
 from app.agents.retrieval_agent import RetrievalAgent
 from app.agents.postprocessor_agent import PostProcessorAgent
 from app.llm.openai_provider import OpenAIProvider
+from app.tools import ArgosToolService
 from openai import OpenAI
 from app.utils.validation import FileValidator, ContentValidator, APIKeyValidator, ValidationError
 from app.constants import (
@@ -107,9 +108,71 @@ class ApiKeyResponse(BaseModel):
     message: str
     encrypted: bool
 
+
+class EmailSyncRequest(BaseModel):
+    limit: int = 20
+    unread_only: bool = True
+    since_days: int = 30
+    include_bodies: bool = True
+    include_attachments: bool = True
+    mark_seen: bool = False
+
+
+def get_tool_service() -> ArgosToolService:
+    """Dependency seam shared by email HTTP endpoints and their tests."""
+    return ArgosToolService()
+
 @app.get("/")
 async def root():
     return {"message": "ArgosOS Backend API", "version": "1.0.0"}
+
+
+@app.get("/api/email/status")
+async def get_email_status(service: ArgosToolService = Depends(get_tool_service)):
+    """Return non-secret IMAP connection configuration status."""
+    return {"success": True, "email": service.email_status()}
+
+
+@app.get("/api/email/preview")
+async def preview_email(
+    limit: int = 20,
+    unread_only: bool = True,
+    since_days: int = 30,
+    service: ArgosToolService = Depends(get_tool_service),
+):
+    """Preview messages without importing or marking them read."""
+    try:
+        return {
+            "success": True,
+            "email": service.preview_email(
+                limit=limit,
+                unread_only=unread_only,
+                since_days=since_days,
+            ),
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Email preview failed")
+        raise HTTPException(status_code=502, detail="Could not read the configured mailbox") from exc
+
+
+@app.post("/api/email/sync")
+async def sync_email(
+    request: EmailSyncRequest,
+    service: ArgosToolService = Depends(get_tool_service),
+):
+    """Import email bodies and attachments; messages stay unread by default."""
+    try:
+        return {
+            "success": True,
+            "email": service.sync_email(**request.model_dump()),
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Email sync failed")
+        raise HTTPException(status_code=502, detail="Could not sync the configured mailbox") from exc
 
 @app.post("/v1/api-key", response_model=ApiKeyResponse)
 async def store_api_key(request: ApiKeyRequest):

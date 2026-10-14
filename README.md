@@ -16,6 +16,10 @@ a proposed option and is not implemented in the current build.
 See [processing modes and terminology](docs/ARGOS_MODES.md) for the standalone
 desktop packaging, current cloud-enhanced mode, and proposed fully local mode.
 
+ArgosOS also provides a local MCP server with document search/read tools and
+read-only-by-default IMAP email ingestion. See the
+[MCP and email setup guide](docs/MCP_AND_EMAIL.md).
+
 ---
 
 ## Download

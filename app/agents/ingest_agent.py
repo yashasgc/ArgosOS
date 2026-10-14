@@ -19,6 +19,7 @@ from app.constants import (
     MAX_FILE_SIZE, MAX_TEXT_PREVIEW, MAX_CONTENT_PREVIEW, MAX_SUMMARY_PREVIEW
 )
 from app.files.text_extractor import TextExtractor
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class IngestAgent:
         """
         self.llm_provider = llm_provider
         self.text_extractor = TextExtractor(llm_provider)
-        self.blobs_dir = Path("./data/blobs")
+        self.blobs_dir = settings.blobs_dir
         self.blobs_dir.mkdir(parents=True, exist_ok=True)
     
     def is_supported(self, mime_type: str) -> bool:
